@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+
+/*
+ * Be Vietnam Pro không có bản variable nên phải nạp từng độ đậm một.
+ * Chỉ nạp đúng 4 độ app đang dùng: 400 thường, 500 vừa, 600 đậm vừa, 700 đậm.
+ * Dùng thêm độ đậm nào thì khai báo thêm ở đây, không thì chữ sẽ bị trình
+ * duyệt tự làm đậm giả (faux bold) trông rất xấu.
+ * Mỗi file đã tách sẵn subset tiếng Việt kèm unicode-range nên trình duyệt
+ * chỉ tải đúng phần chữ cần dùng.
+ */
+@import '@fontsource/be-vietnam-pro/400.css';
+@import '@fontsource/be-vietnam-pro/500.css';
+@import '@fontsource/be-vietnam-pro/600.css';
+@import '@fontsource/be-vietnam-pro/700.css';
+@import './tokens.css';
+
+/*
+ * Tailwind quét mọi file trong repo, kể cả tài liệu và file cấu hình.
+ * Một dòng nhắc tên class là sinh ra CSS thừa: README từng làm rò cả
+ * bg-blue-600 vào bản build dù chính nó cấm dùng màu đó, và eslint.config.js
+ * thì cố tình liệt kê các class bị cấm để làm ví dụ.
+ * Loại hai nguồn đó ra khỏi phạm vi quét.
+ */
+@source not "../../**/*.md";
+@source not "../../eslint.config.js";
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-surface-muted text-content antialiased;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  /*
+   * Popover mặc định bị canh giữa màn hình. Toast tự định vị lấy
+   * nên phải gỡ bỏ inset/margin/nền mặc định của trình duyệt.
+   */
+  [popover] {
+    inset: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  /* Nền mờ phía sau modal. */
+  dialog::backdrop {
+    background: oklch(0.208 0.042 266 / 0.45);
+  }
+}

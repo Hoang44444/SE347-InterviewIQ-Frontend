@@ -1,0 +1,145 @@
+/*
+ * ============================================================
+ *  DESIGN TOKENS - NGUỒN SỰ THẬT DUY NHẤT VỀ GIAO DIỆN
+ * ============================================================
+ *  Mọi màu, font, khoảng cách, bo góc trong app đều lấy từ đây.
+ *  Component KHÔNG được hardcode mã hex hay px tuỳ ý.
+ *
+ *  Sửa một token ở đây = đổi đồng bộ toàn bộ 5 luồng nghiệp vụ.
+ * ============================================================
+ */
+
+@theme {
+  /* ---------- FONT ---------- */
+  --font-sans:
+    'Be Vietnam Pro', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* ---------- MÀU THƯƠNG HIỆU ---------- */
+  /* Thang màu chính. Dùng cho hành động chính, link, trạng thái active. */
+  --color-brand-50: oklch(0.971 0.014 259);
+  --color-brand-100: oklch(0.936 0.033 259);
+  --color-brand-200: oklch(0.885 0.062 259);
+  --color-brand-300: oklch(0.812 0.104 259);
+  --color-brand-400: oklch(0.716 0.152 259);
+  --color-brand-500: oklch(0.63 0.188 259);
+  --color-brand-600: oklch(0.553 0.196 259);
+  --color-brand-700: oklch(0.481 0.176 259);
+  --color-brand-800: oklch(0.411 0.145 259);
+  --color-brand-900: oklch(0.36 0.118 259);
+  --color-brand-950: oklch(0.256 0.08 259);
+
+  /* ---------- MÀU TRẠNG THÁI ---------- */
+  /* Dùng đúng ngữ nghĩa: success = thành công, danger = xoá/lỗi, ... */
+  --color-success-50: oklch(0.979 0.021 166);
+  --color-success-100: oklch(0.95 0.052 163);
+  --color-success-600: oklch(0.596 0.145 163);
+  --color-success-700: oklch(0.508 0.118 166);
+
+  --color-warning-50: oklch(0.987 0.022 95);
+  --color-warning-100: oklch(0.962 0.059 96);
+  --color-warning-600: oklch(0.666 0.179 59);
+  --color-warning-700: oklch(0.555 0.163 49);
+
+  --color-danger-50: oklch(0.971 0.013 17);
+  --color-danger-100: oklch(0.936 0.032 18);
+  --color-danger-600: oklch(0.577 0.245 27);
+  --color-danger-700: oklch(0.505 0.213 28);
+
+  --color-info-50: oklch(0.977 0.013 236);
+  --color-info-100: oklch(0.951 0.026 237);
+  --color-info-600: oklch(0.588 0.158 242);
+  --color-info-700: oklch(0.5 0.134 242);
+
+  /* ---------- MÀU NGỮ NGHĨA CHO BỀ MẶT ---------- */
+  /*
+   * Ưu tiên dùng nhóm này thay vì gọi thẳng bảng màu mặc định của Tailwind.
+   * Ví dụ: nền thẻ lấy từ surface, chữ phụ lấy từ content-muted.
+   * Sau này muốn làm dark mode chỉ cần đổi 8 dòng dưới đây.
+   */
+  --color-surface: oklch(1 0 0);
+  --color-surface-muted: oklch(0.984 0.003 248);
+  --color-surface-sunken: oklch(0.968 0.007 248);
+  --color-border: oklch(0.929 0.013 256);
+  --color-border-strong: oklch(0.869 0.022 253);
+  --color-content: oklch(0.208 0.042 266);
+  --color-content-muted: oklch(0.446 0.043 257);
+  --color-content-subtle: oklch(0.554 0.046 257);
+
+  /* ---------- BO GÓC ---------- */
+  --radius-control: 0.5rem; /* nút, ô nhập liệu */
+  --radius-card: 0.75rem; /* thẻ, panel */
+  --radius-panel: 1rem; /* modal, khối lớn */
+
+  /* ---------- ĐỔ BÓNG ---------- */
+  --shadow-card: 0 1px 3px 0 oklch(0 0 0 / 0.08), 0 1px 2px -1px oklch(0 0 0 / 0.08);
+  --shadow-popover: 0 10px 25px -5px oklch(0 0 0 / 0.12), 0 8px 10px -6px oklch(0 0 0 / 0.08);
+  --shadow-modal: 0 25px 50px -12px oklch(0 0 0 / 0.25);
+
+  /* ---------- CHIỀU RỘNG KHUNG NỘI DUNG ---------- */
+  --container-page: 72rem; /* max-w-page cho vùng nội dung chính */
+  --container-form: 28rem; /* max-w-form cho form đăng nhập/đăng ký */
+  --container-text: 42rem; /* max-w-text cho đoạn văn bản dài */
+
+  /* ---------- CHUYỂN ĐỘNG ---------- */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-toast-in: toast-in 0.2s var(--ease-out-soft);
+  --animate-modal-in: modal-in 0.18s var(--ease-out-soft);
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes modal-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+}
+
+/*
+ * ---------- KHOẢNG CÁCH ----------
+ * Thang khoảng cách chính thức. Mọi bước là bội số của 4px.
+ *
+ * KHÔNG đặt trong @theme. Lý do: Tailwind sinh utility kích thước
+ * (max-w-*, w-*, h-*) từ CẢ hai nhóm --container-* và --spacing-*,
+ * và nhóm --spacing-* thắng. Đặt --spacing-2xl ở đây là max-w-2xl
+ * tụt từ 42rem xuống 3rem, max-w-sm còn 12px — vỡ bố cục toàn app
+ * mà không báo một lỗi nào. Khai báo lại --container-* cũng không
+ * giành lại được. Nên để ở :root, giống khối --z-* bên dưới.
+ *
+ * Cách dùng:
+ *   - Ưu tiên component: <Stack gap="lg">, <Card padding="md">
+ *   - Cần gọi trực tiếp: gap-(--space-lg), p-(--space-md)
+ */
+:root {
+  --space-2xs: 0.25rem; /* 4px  - khe giữa icon và chữ */
+  --space-xs: 0.5rem; /* 8px  - khe trong một nhóm nhỏ */
+  --space-sm: 0.75rem; /* 12px - khe giữa các dòng trong một khối */
+  --space-md: 1rem; /* 16px - đệm trong thẻ, khe mặc định */
+  --space-lg: 1.5rem; /* 24px - khe giữa các khối */
+  --space-xl: 2rem; /* 32px - khe giữa các vùng lớn */
+  --space-2xl: 3rem; /* 48px - khe giữa các section của trang */
+}
+
+/*
+ * Lớp xếp chồng. Không đặt trong @theme vì Tailwind không sinh
+ * utility cho z-index từ biến; dùng qua z-[var(--z-toast)].
+ */
+:root {
+  --z-navbar: 100;
+  --z-dropdown: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+}

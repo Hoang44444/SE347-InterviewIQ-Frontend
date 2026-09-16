@@ -1,0 +1,4 @@
+# Prettier trong dự án này bắt endOfLine "lf", mà Git trên Windows mặc định
+# core.autocrlf=true nên lúc clone sẽ đổi hết sang CRLF -> format:check đỏ
+# toàn bộ file dù không ai sửa gì. Dòng dưới ép mọi máy checkout ra LF.
+* text=auto eol=lf
