@@ -1,7 +1,8 @@
-import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
+import axios from 'axios'
+import type { AxiosError, InternalAxiosRequestConfig } from 'axios'
 
 import { API_URL, REQUEST_TIMEOUT, STORAGE_KEYS } from '@/constants'
-import type { ApiError } from '@/types/api'
+import type { ApiError, ApiErrorResponse } from '@/types/api'
 import { storage } from '@/utils/storage'
 
 export const apiClient = axios.create({
@@ -25,8 +26,9 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
  */
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<{ message?: string; errors?: Record<string, string[]> }>) => {
+  (error: AxiosError<ApiErrorResponse>) => {
     const status = error.response?.status ?? 0
+    const body = error.response?.data
 
     if (status === 401) {
       storage.remove(STORAGE_KEYS.accessToken)
@@ -38,10 +40,18 @@ apiClient.interceptors.response.use(
       }
     }
 
+    const fieldErrors = body?.errors?.reduce((fields, { field, messages }) => {
+      fields.set(field, [...(fields.get(field) ?? []), ...messages])
+      return fields
+    }, new Map<string, string[]>())
+
     const apiError: ApiError = {
       status,
-      message: error.response?.data?.message ?? error.message ?? 'Đã có lỗi xảy ra',
-      errors: error.response?.data?.errors,
+      message: body?.message ?? error.message ?? 'Đã có lỗi xảy ra',
+      errors: fieldErrors ? Object.fromEntries(fieldErrors) : undefined,
+      code: body?.code,
+      path: body?.path,
+      timestamp: body?.timestamp,
     }
     return Promise.reject(apiError)
   },

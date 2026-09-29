@@ -43,6 +43,10 @@ Add each new path to `src/routes/paths.ts` before declaring its `<Route>`. Do no
 
 `apiClient.ts` configures the base URL, request timeout, bearer token, and error normalization into `ApiError`. A `401` response clears the local session and redirects to the login page. `AuthProvider` stores the current user and exposes `login`, `register`, and `logout` through `useAuth()`.
 
+Backend envelope contracts live in `src/types/api.ts`; `src/shared/apiResponse.ts` re-exports these types. `ApiSuccessResponse<T>` contains `statusCode`, `success: true`, `data`, `message`, and `timestamp`. `ApiErrorResponse` contains `statusCode`, `success: false`, `code`, `message`, optional validation `errors`, `path`, and `timestamp`. `ApiResponse<T>` is the union of both envelopes. Domain services type successful requests as `ApiSuccessResponse<T>` and return the nested `data` payload.
+
+The error interceptor uses the HTTP status for `ApiError.status` and retains the backend `code`, `path`, and `timestamp` when available. It converts validation entries shaped as `{ field, messages }[]` into `ApiError.errors`, a `Record<string, string[]>`, combining messages for repeated fields. Network failures use status `0` and the Axios error message.
+
 Components should only own local presentation state. Put state shared across multiple interface branches in a context, and define API responses and payloads in `src/types/`.
 
 ## Adding a Feature
