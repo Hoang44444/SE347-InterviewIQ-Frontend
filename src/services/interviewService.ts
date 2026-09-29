@@ -1,28 +1,48 @@
 import { apiClient } from './apiClient'
 
-import type { ApiResponse, Paginated } from '@/types/api'
-import type { Answer, CreateInterviewPayload, Interview, Question } from '@/types/interview'
+import type { ApiSuccessResponse, Paginated } from '@/types/api'
+import type {
+  Answer,
+  CreateInterviewPayload,
+  CreateInterviewSessionPayload,
+  CreateInterviewSessionResult,
+  Interview,
+  Question,
+} from '@/types/interview'
 
 export const interviewService = {
+  /** Tạo phiên từ CV của người dùng hiện tại; response chỉ chứa publicId. */
+  async createSession(
+    payload: CreateInterviewSessionPayload,
+  ): Promise<CreateInterviewSessionResult> {
+    const { data } = await apiClient.post<ApiSuccessResponse<CreateInterviewSessionResult>>(
+      '/interview-session',
+      payload,
+    )
+    return data.data
+  },
+
   async create(payload: CreateInterviewPayload): Promise<Interview> {
-    const { data } = await apiClient.post<ApiResponse<Interview>>('/interviews', payload)
+    const { data } = await apiClient.post<ApiSuccessResponse<Interview>>('/interviews', payload)
     return data.data
   },
 
   async list(page = 1, pageSize = 10): Promise<Paginated<Interview>> {
-    const { data } = await apiClient.get<ApiResponse<Paginated<Interview>>>('/interviews', {
+    const { data } = await apiClient.get<ApiSuccessResponse<Paginated<Interview>>>('/interviews', {
       params: { page, pageSize },
     })
     return data.data
   },
 
   async getById(id: string): Promise<Interview> {
-    const { data } = await apiClient.get<ApiResponse<Interview>>(`/interviews/${id}`)
+    const { data } = await apiClient.get<ApiSuccessResponse<Interview>>(`/interviews/${id}`)
     return data.data
   },
 
   async getQuestions(id: string): Promise<Question[]> {
-    const { data } = await apiClient.get<ApiResponse<Question[]>>(`/interviews/${id}/questions`)
+    const { data } = await apiClient.get<ApiSuccessResponse<Question[]>>(
+      `/interviews/${id}/questions`,
+    )
     return data.data
   },
 
