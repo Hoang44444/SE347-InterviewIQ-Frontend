@@ -6,6 +6,7 @@ export const ROUTES = {
   dashboard: '/dashboard',
   interviews: '/interviews',
   interviewRoom: (id: string) => `/interviews/${id}`,
+  devInterviewRoom: '/dev/interview-room',
   profile: '/profile',
   designSystem: '/design-system',
 } as const

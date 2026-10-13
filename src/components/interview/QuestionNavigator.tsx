@@ -8,16 +8,14 @@ export interface QuestionNavigatorProps {
   currentIndex: number
   /** Id các câu đã lưu được câu trả lời lên máy chủ. */
   answeredIds: ReadonlySet<string>
-  onSelect: (index: number) => void
   className?: string
 }
 
-/** Danh sách câu hỏi bên cạnh, cho phép nhảy qua lại và thấy câu nào đã xong. */
+/** Tiến độ trả lời tuần tự; danh sách không cho phép chuyển câu. */
 export function QuestionNavigator({
   questions,
   currentIndex,
   answeredIds,
-  onSelect,
   className,
 }: QuestionNavigatorProps) {
   return (
@@ -36,16 +34,11 @@ export function QuestionNavigator({
 
           return (
             <li key={question.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(index)}
+              <div
                 aria-current={isCurrent ? 'step' : undefined}
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-control px-3 py-2 text-left text-sm transition',
-                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
-                  isCurrent
-                    ? 'bg-brand-50 text-brand-700'
-                    : 'text-content-muted hover:bg-surface-sunken',
+                  'flex w-full items-center gap-3 rounded-control px-3 py-2 text-left text-sm',
+                  isCurrent ? 'bg-brand-50 text-brand-700' : 'text-content-muted',
                 )}
               >
                 <span
@@ -62,14 +55,16 @@ export function QuestionNavigator({
                   {isAnswered ? '✓' : index + 1}
                 </span>
 
-                <span className="min-w-0 flex-1 truncate">{question.content}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {isAnswered || isCurrent ? question.content : `Câu ${index + 1}`}
+                </span>
 
                 <span className="shrink-0 text-xs text-content-subtle">
                   {KIND_LABEL[question.kind]}
                 </span>
 
                 <span className="sr-only">{isAnswered ? 'Đã trả lời' : 'Chưa trả lời'}</span>
-              </button>
+              </div>
             </li>
           )
         })}

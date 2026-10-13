@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type MouseEvent, type ReactNode } from 'react'
 
 import { cn } from '@/utils/cn'
 
@@ -18,6 +18,8 @@ export interface ModalProps {
   /** Hàng nút ở cuối modal, thường là Huỷ + Xác nhận. */
   footer?: ReactNode
   children?: ReactNode
+  /** Chặn đóng hộp trong lúc hành động xác nhận đang hoàn tất. */
+  dismissible?: boolean
 }
 
 /**
@@ -34,8 +36,11 @@ export function Modal({
   size = 'md',
   footer,
   children,
+  dismissible = true,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
+  const descriptionId = useId()
 
   // Đồng bộ prop open với trạng thái thật của thẻ dialog.
   useEffect(() => {
@@ -62,12 +67,12 @@ export function Modal({
    * ta chủ động gọi close(). Chỉ báo lên cha trong trường hợp đầu.
    */
   function handleNativeClose() {
-    if (open) onClose()
+    if (open && dismissible) onClose()
   }
 
   /** Bấm vào vùng nền: lúc đó target chính là thẻ dialog chứ không phải nội dung. */
   function handleBackdropClick(event: MouseEvent<HTMLDialogElement>) {
-    if (event.target === dialogRef.current) onClose()
+    if (dismissible && event.target === dialogRef.current) onClose()
   }
 
   return (
@@ -75,7 +80,11 @@ export function Modal({
       ref={dialogRef}
       onClose={handleNativeClose}
       onClick={handleBackdropClick}
-      aria-labelledby="modal-title"
+      onCancel={(event) => {
+        if (!dismissible) event.preventDefault()
+      }}
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
       className={cn(
         // Preflight của Tailwind xoá margin nên phải trả lại m-auto để dialog nằm giữa.
         'm-auto w-[calc(100%-2rem)] rounded-panel bg-surface p-0 text-content shadow-modal',
@@ -85,15 +94,20 @@ export function Modal({
       <div className="animate-modal-in flex flex-col">
         <header className="flex items-start gap-4 border-b border-border px-6 py-4">
           <div className="flex-1">
-            <h2 id="modal-title" className="text-lg font-semibold text-content">
+            <h2 id={titleId} className="text-lg font-semibold text-content">
               {title}
             </h2>
-            {description && <p className="mt-1 text-sm text-content-muted">{description}</p>}
+            {description && (
+              <p id={descriptionId} className="mt-1 text-sm text-content-muted">
+                {description}
+              </p>
+            )}
           </div>
 
           <button
             type="button"
             onClick={onClose}
+            disabled={!dismissible}
             aria-label="Đóng"
             className="-mr-2 rounded-control p-2 text-content-subtle transition hover:bg-surface-sunken hover:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
           >

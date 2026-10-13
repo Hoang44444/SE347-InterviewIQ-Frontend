@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import { CountdownTimer, QuestionNavigator } from '@/components/interview'
+import { InterviewRecorder, QuestionNavigator, RecordingPlayback } from '@/components/interview'
 import {
   Badge,
   Button,
@@ -14,18 +14,35 @@ import {
   Textarea,
 } from '@/components/ui'
 import { KIND_LABEL, KIND_TONE, STATUS_LABEL, STATUS_TONE } from '@/constants/interview'
-import { useCountdown } from '@/hooks/useCountdown'
+import { useInterviewClock } from '@/hooks/useInterviewClock'
+import { useAnswerSubmission } from '@/hooks/useAnswerSubmission'
+import { useSessionSubmission } from '@/hooks/useSessionSubmission'
+import { useScoringJob } from '@/hooks/useScoringJob'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { useInterviewRecorder } from '@/hooks/useInterviewRecorder'
 import { useToast } from '@/hooks/useToast'
 import { ROUTES } from '@/routes/paths'
 import { interviewService } from '@/services/interviewService'
 import type { ApiError } from '@/types/api'
-import type { Answer, Interview, Question } from '@/types/interview'
+import type { Interview, InterviewRoomService, Question } from '@/types/interview'
 import { formatDuration } from '@/utils/format'
 
 export function InterviewRoomPage() {
   const { id = '' } = useParams<{ id: string }>()
+  // Đổi phòng phải huỷ quyền đang chờ và toàn bộ tài nguyên của phòng trước.
+  return <InterviewRoom key={id} id={id} />
+}
+
+export function InterviewRoom({
+  id,
+  service = interviewService,
+}: {
+  id: string
+  service?: InterviewRoomService
+}) {
   const toast = useToast()
+  const recorder = useInterviewRecorder()
+  const { stopRecording, disableDevices } = recorder
 
   const [interview, setInterview] = useState<Interview | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -37,41 +54,42 @@ export function InterviewRoomPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   /** Nội dung đang gõ, chưa gửi lên máy chủ. */
   const [drafts, setDrafts] = useState<Record<string, string>>({})
-  /** Câu trả lời đã gửi thành công, dùng để đánh dấu và tính tổng thời gian. */
-  const [savedAnswers, setSavedAnswers] = useState<Record<string, Answer>>({})
-  const [isSaving, setIsSaving] = useState(false)
+  /** Câu trả lời đã gửi thành công, dùng để đánh dấu tiến độ và xem tổng kết. */
+  const answerSubmission = useAnswerSubmission(id, service)
+  const { savedAnswers } = answerSubmission
+  const [answerDurations, setAnswerDurations] = useState<Record<string, number>>({})
+  const [isFinalizing, setIsFinalizing] = useState(false)
+  // Ref khoá ngay cả hai click/Ctrl+Enter trước khi React kịp render disabled.
+  const actionRef = useRef(false)
+  const activeRef = useRef(false)
 
   const [isFinishOpen, setIsFinishOpen] = useState(false)
-  const [isFinished, setIsFinished] = useState(false)
+  const [isStarted, setIsStarted] = useState(false)
+  const { clock, elapsed } = useInterviewClock(isStarted)
+  const sessionSubmission = useSessionSubmission(id, service, clock)
+  const { timing: sessionTiming, submission, isSubmitting } = sessionSubmission
+  const isFinished = sessionTiming !== null
+  const scoring = useScoringJob(submission?.jobId ?? null, service)
 
-  /**
-   * Số giây còn lại của từng câu. Giữ trong ref vì chỉ cần đọc lúc chuyển câu;
-   * để trong state sẽ làm cả trang render lại theo mỗi nhịp đồng hồ.
-   */
-  const remainingRef = useRef<Record<string, number>>({})
+  useEffect(() => {
+    activeRef.current = true
+    return () => {
+      activeRef.current = false
+    }
+  }, [])
 
   useDocumentTitle(interview ? interview.title : 'Phòng phỏng vấn')
-
-  const { secondsLeft, isRunning, start, pause, reset } = useCountdown(0, {
-    onExpire: () =>
-      toast.warning('Hết thời gian gợi ý', 'Vẫn trả lời tiếp được, chỉ là đã quá mức gợi ý.'),
-  })
 
   useEffect(() => {
     let active = true
 
-    Promise.all([interviewService.getById(id), interviewService.getQuestions(id)])
+    Promise.all([service.getById(id), service.getQuestions(id)])
       .then(([detail, list]) => {
         if (!active) return
 
         setInterview(detail)
         setQuestions(list)
         setCurrentIndex(0)
-        remainingRef.current = Object.fromEntries(
-          list.map((question) => [question.id, question.suggestedSeconds]),
-        )
-        // Vào phòng là đồng hồ chạy ngay cho câu đầu tiên.
-        reset(list[0]?.suggestedSeconds ?? 0, true)
       })
       .catch((err: ApiError) => {
         if (active) setLoadError(err.message)
@@ -83,7 +101,7 @@ export function InterviewRoomPage() {
     return () => {
       active = false
     }
-  }, [id, reloadToken, reset])
+  }, [id, reloadToken, service])
 
   const currentQuestion = questions[currentIndex]
   const currentDraft = currentQuestion ? (drafts[currentQuestion.id] ?? '') : ''
@@ -93,73 +111,118 @@ export function InterviewRoomPage() {
     (question) => (drafts[question.id] ?? '').trim() !== '' && !answeredIds.has(question.id),
   )
 
-  // Chặn đóng tab khi còn câu trả lời chưa gửi đi.
+  const hasRecordings = Object.keys(recorder.recordings).length > 0
+  const hasUnsavedRecordings = Object.keys(recorder.recordings).some(
+    (questionId) => !answeredIds.has(questionId),
+  )
+  const isSaving = isFinalizing || answerSubmission.phase !== 'idle'
+  const isBusy = isSaving || isSubmitting || recorder.status === 'stopping'
+  const isPermissionPending = recorder.status === 'requesting'
+  const canSubmitSession =
+    questions.length > 0 &&
+    questions.every((question) => savedAnswers[question.id]) &&
+    !!interview?.cvPublicId &&
+    !isBusy &&
+    !isPermissionPending &&
+    !answerSubmission.blocked &&
+    !isFinished
+  const shouldWarnOnLeave =
+    !submission &&
+    ((isStarted && !isFinished) ||
+      hasUnsaved ||
+      hasUnsavedRecordings ||
+      isFinished ||
+      recorder.status === 'recording' ||
+      recorder.status === 'stopping')
+  const saveStatus = isFinalizing
+    ? 'Đang chốt bản ghi'
+    : answerSubmission.phase === 'uploading'
+      ? 'Đang upload video'
+      : answerSubmission.phase === 'saving'
+        ? 'Đang lưu câu trả lời'
+        : ''
+
   useEffect(() => {
-    if (!hasUnsaved || isFinished) return
+    if (!shouldWarnOnLeave) return
 
     function handleBeforeUnload(event: BeforeUnloadEvent) {
       event.preventDefault()
+      event.returnValue = ''
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsaved, isFinished])
+  }, [shouldWarnOnLeave])
 
-  const goTo = useCallback(
-    (index: number) => {
-      const target = questions[index]
-      if (!target || index === currentIndex) return
-
-      // Cất lại thời gian của câu đang mở trước khi nhảy sang câu khác.
-      if (currentQuestion) remainingRef.current[currentQuestion.id] = secondsLeft
-
-      setCurrentIndex(index)
-      const remaining = remainingRef.current[target.id] ?? target.suggestedSeconds
-      // Câu đã trả lời rồi thì mở ra đọc lại, không đếm giờ nữa.
-      reset(remaining, !savedAnswers[target.id])
-    },
-    [currentIndex, currentQuestion, questions, reset, savedAnswers, secondsLeft],
-  )
+  function handleStart() {
+    if (!currentQuestion || isStarted || actionRef.current) return
+    clock.start(currentQuestion.id)
+    setIsStarted(true)
+  }
 
   function handleDraftChange(value: string) {
-    if (!currentQuestion) return
+    if (
+      !currentQuestion ||
+      !isStarted ||
+      isFinished ||
+      answeredIds.has(currentQuestion.id) ||
+      actionRef.current ||
+      value.length > 50000
+    )
+      return
     setDrafts((previous) => ({ ...previous, [currentQuestion.id]: value }))
   }
 
   async function handleSave() {
-    if (!currentQuestion) return
+    if (
+      !currentQuestion ||
+      !isStarted ||
+      answeredIds.has(currentQuestion.id) ||
+      actionRef.current ||
+      isBusy ||
+      isPermissionPending
+    )
+      return
 
-    const content = currentDraft.trim()
-    if (!content) {
-      toast.warning('Chưa có nội dung', 'Nhập câu trả lời trước khi lưu.')
+    if (isFinished || answerSubmission.blocked) return
+    if (!recorder.recordings[currentQuestion.id] && recorder.status !== 'recording') {
+      toast.warning(
+        'Cần có video',
+        'Hãy bật camera và micro rồi ghi video cho câu này trước khi nộp.',
+      )
       return
     }
-
-    pause()
-    const answer: Answer = {
-      questionId: currentQuestion.id,
-      content,
-      /*
-       * Đồng hồ dừng hẳn ở 0 nên thời gian ghi nhận nhiều nhất bằng thời gian
-       * gợi ý. Phần trả lời quá giờ không được tính thêm — lưu ý khi đối chiếu
-       * số liệu với backend.
-       */
-      durationSeconds: Math.max(0, currentQuestion.suggestedSeconds - secondsLeft),
-    }
-
-    setIsSaving(true)
+    actionRef.current = true
+    const answerSeconds = clock.submitQuestion()
+    setIsFinalizing(true)
     try {
-      await interviewService.submitAnswer(id, answer)
-      setSavedAnswers((previous) => ({ ...previous, [currentQuestion.id]: answer }))
+      const wasRecording = recorder.status === 'recording'
+      const finalized = await stopRecording()
+      if (!activeRef.current) return
+      // Nếu bản ghi đang ghi bị lỗi, không tự nộp bản ghi cũ thay cho bản vừa ghi.
+      if (wasRecording && !finalized)
+        throw new Error('Không chốt được bản ghi mới. Hãy kiểm tra bản ghi và thử lại.')
+      setIsFinalizing(false)
+      const answer = await answerSubmission.save(
+        currentQuestion.id,
+        currentDraft,
+        finalized ?? recorder.recordings[currentQuestion.id],
+      )
+      if (!activeRef.current || !answer) return
+      setAnswerDurations((previous) => ({ ...previous, [currentQuestion.id]: answerSeconds }))
       toast.success('Đã lưu câu trả lời', `Câu ${currentIndex + 1}/${questions.length}`)
-
-      if (currentIndex < questions.length - 1) goTo(currentIndex + 1)
+      const nextQuestion = questions[currentIndex + 1]
+      if (nextQuestion) {
+        clock.openQuestion(nextQuestion.id)
+        setCurrentIndex(currentIndex + 1)
+      }
     } catch (err) {
+      if (!activeRef.current) return
       toast.error('Không lưu được câu trả lời', (err as ApiError).message)
-      // Lưu hỏng thì trả đồng hồ chạy tiếp để người dùng sửa rồi gửi lại.
-      start()
+      clock.resumeQuestion()
     } finally {
-      setIsSaving(false)
+      actionRef.current = false
+      if (activeRef.current) setIsFinalizing(false)
     }
   }
 
@@ -171,10 +234,24 @@ export function InterviewRoomPage() {
     }
   }
 
-  function handleFinish() {
-    pause()
+  async function handleFinish() {
+    if (actionRef.current || isBusy || !isStarted || !interview || answerSubmission.blocked) return
+    if (!canSubmitSession && !sessionSubmission.canRetry) return
+    actionRef.current = true
     setIsFinishOpen(false)
-    setIsFinished(true)
+    try {
+      await sessionSubmission.submit(
+        {
+          cvPublicId: interview.cvPublicId,
+          questionIds: questions.map((question) => question.id),
+          savedAnswers,
+          isPending: isBusy,
+        },
+        disableDevices,
+      )
+    } finally {
+      actionRef.current = false
+    }
   }
 
   function handleRetry() {
@@ -227,14 +304,72 @@ export function InterviewRoomPage() {
   }
 
   if (isFinished) {
-    const totalSpent = Object.values(savedAnswers).reduce(
-      (sum, answer) => sum + answer.durationSeconds,
-      0,
-    )
-
     return (
       <Stack gap="lg">
-        <PageHeader title="Đã kết thúc buổi phỏng vấn" description={interview.title} />
+        <PageHeader
+          title={
+            !submission
+              ? 'Session đã chốt để nộp'
+              : scoring.job?.status === 'COMPLETED'
+                ? 'Đã nộp — đã chấm điểm'
+                : scoring.job?.status === 'FAILED'
+                  ? 'Đã nộp — chấm điểm thất bại'
+                  : 'Đã nộp — đang chấm điểm'
+          }
+          description={interview.title}
+        />
+        <Card>
+          <Stack gap="md">
+            {isSubmitting && <p role="status">Đang nộp session</p>}
+            {sessionSubmission.error && (
+              <p role="alert" className="text-sm text-danger-700">
+                {sessionSubmission.error}
+              </p>
+            )}
+            {sessionSubmission.canRetry && (
+              <>
+                <p className="text-sm text-content-muted">
+                  Session có thể đã được lưu trên máy chủ. Thời gian và câu trả lời đã khóa; thử nộp
+                  lại để bắt đầu chấm điểm.
+                </p>
+                <Button onClick={handleFinish} isLoading={isSubmitting} className="self-start">
+                  Thử nộp session lại
+                </Button>
+              </>
+            )}
+            {submission && (
+              <>
+                <p role="status">
+                  {scoring.job?.status === 'COMPLETED'
+                    ? 'Đã chấm điểm xong'
+                    : scoring.job?.status === 'FAILED'
+                      ? 'Chấm điểm thất bại'
+                      : 'Đã nộp — đang chấm điểm'}
+                </p>
+                <p className="text-sm text-content-subtle">
+                  {scoring.job?.status === 'COMPLETED'
+                    ? 'Chấm điểm đã hoàn tất. Kết quả điểm chưa được trả về trong trạng thái job.'
+                    : 'Theo dõi tiến độ chấm điểm cho session đã nộp.'}
+                </p>
+                {scoring.error && (
+                  <>
+                    <p role="alert" className="text-sm text-danger-700">
+                      {scoring.error}
+                    </p>
+                    <Button
+                      variant="secondary"
+                      onClick={scoring.checkAgain}
+                      isLoading={scoring.isChecking}
+                      className="self-start"
+                    >
+                      Thử kiểm tra lại
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+          </Stack>
+        </Card>
         <Card padding="xl">
           <dl className="grid gap-6 sm:grid-cols-3">
             <div>
@@ -246,7 +381,7 @@ export function InterviewRoomPage() {
             <div>
               <dt className="text-sm text-content-subtle">Tổng thời gian</dt>
               <dd className="mt-1 font-mono text-2xl font-semibold text-content">
-                {formatDuration(totalSpent)}
+                {formatDuration(sessionTiming?.durationSeconds ?? 0)}
               </dd>
             </div>
             <div>
@@ -259,8 +394,79 @@ export function InterviewRoomPage() {
             <Link to={ROUTES.interviews}>
               <Button>Về danh sách</Button>
             </Link>
-            <Button variant="secondary" onClick={() => setIsFinished(false)}>
-              Xem lại câu trả lời
+          </Stack>
+        </Card>
+        <Card>
+          <Stack gap="lg">
+            <h2 className="text-lg font-semibold text-content">Câu trả lời đã nộp</h2>
+            {questions.map((question, index) => {
+              const answer = savedAnswers[question.id]
+              return answer ? (
+                <Stack key={question.id} gap="sm">
+                  <h3 className="font-medium text-content">
+                    Câu {index + 1}: {question.content}
+                  </h3>
+                  <p className="text-sm text-content-subtle">
+                    Thời gian trả lời: {formatDuration(answerDurations[question.id] ?? 0)}
+                  </p>
+                  <p className="text-sm text-content-subtle">
+                    Thời lượng video: {formatDuration(answer.durationSeconds)}
+                  </p>
+                  <p className="wrap-anywhere whitespace-pre-wrap text-content-muted">
+                    {answer.transcript || 'Transcript rỗng'}
+                  </p>
+                  <video
+                    controls
+                    playsInline
+                    preload="metadata"
+                    src={answer.videoUrl}
+                    aria-label={`Video đã lưu câu ${index + 1}`}
+                    className="aspect-video w-full rounded-control bg-surface-sunken"
+                  />
+                </Stack>
+              ) : null
+            })}
+          </Stack>
+        </Card>
+        {hasRecordings && (
+          <Card>
+            <Stack gap="lg">
+              <h2 className="text-lg font-semibold text-content">Bản ghi trong phòng</h2>
+              <p className="text-sm text-content-muted">
+                Camera và micro đã tắt. Các bản ghi local sẽ mất khi rời phòng; video và transcript
+                đã lưu theo câu trả lời. Bạn có thể tải bản sao xuống.
+              </p>
+              <div className="grid gap-6 sm:grid-cols-2">
+                {questions.map((question, index) => {
+                  const recording = recorder.recordings[question.id]
+                  return recording ? (
+                    <Stack key={question.id} gap="sm">
+                      <p className="text-sm text-content-muted">{question.content}</p>
+                      <RecordingPlayback recording={recording} questionNumber={index + 1} />
+                    </Stack>
+                  ) : null
+                })}
+              </div>
+            </Stack>
+          </Card>
+        )}
+      </Stack>
+    )
+  }
+
+  if (!isStarted) {
+    return (
+      <Stack gap="lg">
+        <PageHeader title={interview.title} description={interview.position} />
+        <Card padding="xl">
+          <Stack gap="lg">
+            <h2 className="text-xl font-semibold text-content">Sẵn sàng phỏng vấn</h2>
+            <p className="text-content-muted">
+              Buổi này có {questions.length} câu hỏi. Trả lời lần lượt; nộp thành công mới mở câu
+              tiếp theo. Đồng hồ bắt đầu khi bạn bấm bắt đầu.
+            </p>
+            <Button size="lg" onClick={handleStart} className="self-start">
+              Bắt đầu phỏng vấn
             </Button>
           </Stack>
         </Card>
@@ -269,7 +475,6 @@ export function InterviewRoomPage() {
   }
 
   const isAnswered = answeredIds.has(currentQuestion.id)
-  const unansweredCount = questions.length - answeredIds.size
 
   return (
     <Stack gap="lg">
@@ -279,19 +484,29 @@ export function InterviewRoomPage() {
         actions={
           <>
             <Badge tone={STATUS_TONE[interview.status]}>{STATUS_LABEL[interview.status]}</Badge>
-            <Button variant="secondary" onClick={() => setIsFinishOpen(true)}>
-              Kết thúc buổi
+            <Button
+              variant="secondary"
+              onClick={() => setIsFinishOpen(true)}
+              disabled={!canSubmitSession}
+            >
+              Nộp session
             </Button>
           </>
         }
       />
+
+      {!interview.cvPublicId && (
+        <p role="alert" className="text-sm text-warning-700">
+          Không tìm thấy CV gắn với session. Chưa thể nộp session để chấm điểm.
+        </p>
+      )}
 
       {/*
        * Đặt vị trí từng ô theo lưới thay vì xếp hai cột lồng nhau, để trên
        * điện thoại thứ tự đọc là: câu hỏi — đồng hồ — ô trả lời — danh sách.
        * Đồng hồ phải nằm ngay dưới câu hỏi chứ không tụt xuống dưới ô nhập.
        */}
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <Card padding="xl" className="lg:col-start-1 lg:row-start-1">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-medium text-content-subtle">
@@ -308,45 +523,73 @@ export function InterviewRoomPage() {
           </p>
         </Card>
 
-        <CountdownTimer
-          className="lg:col-start-2 lg:row-start-1"
-          secondsLeft={secondsLeft}
-          totalSeconds={currentQuestion.suggestedSeconds}
-          isRunning={isRunning}
-          onToggle={isRunning ? pause : start}
-        />
+        <Card className="lg:col-start-2 lg:row-start-1">
+          <Stack gap="lg">
+            <div>
+              <p className="text-sm font-medium text-content-muted">Thời gian session</p>
+              <p
+                role="timer"
+                aria-label="Thời gian session"
+                className="mt-2 font-mono text-3xl font-semibold tabular-nums text-content"
+              >
+                {formatDuration(elapsed.sessionSeconds)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-content-muted">Thời gian câu hiện tại</p>
+              <p
+                role="timer"
+                aria-label="Thời gian câu hiện tại"
+                className="mt-2 font-mono text-3xl font-semibold tabular-nums text-content"
+              >
+                {formatDuration(elapsed.questionSeconds)}
+              </p>
+              <p className="mt-2 text-sm text-content-subtle">
+                {isAnswered
+                  ? 'Đã nộp câu cuối. Bạn có thể nộp session.'
+                  : isSaving
+                    ? saveStatus
+                    : 'Tính từ khi mở câu đến lúc bấm nộp.'}
+              </p>
+            </div>
+          </Stack>
+        </Card>
 
         <Card className="lg:col-start-1 lg:row-start-2">
           <Textarea
-            label="Câu trả lời của bạn"
-            hint="Ctrl + Enter để lưu nhanh."
+            label="Transcript của bạn"
+            maxLength={50000}
+            hint="Có thể chỉnh transcript hoặc để rỗng. Video là bắt buộc. Ctrl + Enter để nộp."
             value={currentDraft}
             onChange={(event) => handleDraftChange(event.target.value)}
             onKeyDown={handleTextareaKeyDown}
+            disabled={isBusy || isAnswered || answerSubmission.blocked}
             placeholder="Trình bày theo bố cục: bối cảnh — nhiệm vụ — hành động — kết quả."
             className="min-h-48"
           />
 
+          {saveStatus && (
+            <p role="status" className="mt-3 text-sm text-content-muted">
+              {saveStatus}
+            </p>
+          )}
+          {answerSubmission.error && (
+            <p role="alert" className="mt-3 text-sm text-danger-700">
+              {answerSubmission.error}
+            </p>
+          )}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <span className="text-xs text-content-subtle">{currentDraft.trim().length} ký tự</span>
+            <span className="text-xs text-content-subtle">{currentDraft.length}/50.000 ký tự</span>
 
-            <Stack direction="row" gap="sm">
+            <Stack direction="row" gap="sm" className="flex-wrap">
               <Button
-                variant="secondary"
-                onClick={() => goTo(currentIndex - 1)}
-                disabled={currentIndex === 0}
+                onClick={handleSave}
+                isLoading={isSaving}
+                disabled={isBusy || isPermissionPending || isAnswered || answerSubmission.blocked}
               >
-                Câu trước
-              </Button>
-              <Button onClick={handleSave} isLoading={isSaving}>
-                {isAnswered ? 'Lưu lại' : 'Lưu câu trả lời'}
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => goTo(currentIndex + 1)}
-                disabled={currentIndex === questions.length - 1}
-              >
-                Câu sau
+                {isAnswered
+                  ? 'Đã nộp câu trả lời'
+                  : saveStatus || 'Đã trả lời xong — Nộp câu trả lời'}
               </Button>
             </Stack>
           </div>
@@ -357,27 +600,34 @@ export function InterviewRoomPage() {
           questions={questions}
           currentIndex={currentIndex}
           answeredIds={answeredIds}
-          onSelect={goTo}
+        />
+
+        <InterviewRecorder
+          key={currentQuestion.id}
+          recorder={recorder}
+          questionId={currentQuestion.id}
+          questionNumber={currentIndex + 1}
+          disabled={isBusy || isAnswered || answerSubmission.blocked}
+          className="min-w-0 lg:col-start-1 lg:row-start-3"
         />
       </div>
 
       <Modal
         open={isFinishOpen}
-        onClose={() => setIsFinishOpen(false)}
-        title="Kết thúc buổi phỏng vấn"
-        description={
-          unansweredCount > 0
-            ? `Còn ${unansweredCount} câu chưa lưu câu trả lời. Kết thúc bây giờ sẽ bỏ qua những câu đó.`
-            : 'Bạn đã trả lời hết các câu hỏi.'
-        }
+        dismissible={!isBusy}
+        onClose={() => {
+          if (!actionRef.current) setIsFinishOpen(false)
+        }}
+        title="Nộp session để chấm điểm"
+        description="Tất cả câu trả lời đã lưu. Xác nhận nộp sẽ chốt thời gian session và bắt đầu chấm điểm; bạn không thể sửa câu trả lời sau đó."
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setIsFinishOpen(false)}>
+            <Button variant="secondary" onClick={() => setIsFinishOpen(false)} disabled={isBusy}>
               Quay lại làm tiếp
             </Button>
-            <Button variant="danger" onClick={handleFinish}>
-              Kết thúc
+            <Button onClick={handleFinish} disabled={!canSubmitSession} isLoading={isSubmitting}>
+              Xác nhận nộp
             </Button>
           </>
         }
