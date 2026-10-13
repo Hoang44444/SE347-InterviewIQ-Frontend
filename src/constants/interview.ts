@@ -1,5 +1,28 @@
 import type { BadgeProps } from '@/components/ui'
-import type { InterviewStatus, QuestionKind } from '@/types/interview'
+import type { InterviewSessionStatus, InterviewStatus, QuestionKind } from '@/types/interview'
+
+export const SESSION_STATUS_LABEL: Record<InterviewSessionStatus, string> = {
+  CREATED: 'Đã tạo',
+  IN_PROGRESS: 'Đang diễn ra',
+  SUBMITTED: 'Đã nộp',
+  SCORING: 'Đang chấm điểm',
+  COMPLETED: 'Hoàn thành',
+  FAILED: 'Thất bại',
+  CANCELLED: 'Đã huỷ',
+}
+
+export const SESSION_STATUS_TONE: Record<
+  InterviewSessionStatus,
+  NonNullable<BadgeProps['tone']>
+> = {
+  CREATED: 'brand',
+  IN_PROGRESS: 'info',
+  SUBMITTED: 'info',
+  SCORING: 'warning',
+  COMPLETED: 'success',
+  FAILED: 'danger',
+  CANCELLED: 'neutral',
+}
 
 /**
  * Nhãn và màu của trạng thái buổi phỏng vấn. Khai báo một chỗ để danh sách,

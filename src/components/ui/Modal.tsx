@@ -87,12 +87,12 @@ export function Modal({
       aria-describedby={description ? descriptionId : undefined}
       className={cn(
         // Preflight của Tailwind xoá margin nên phải trả lại m-auto để dialog nằm giữa.
-        'm-auto w-[calc(100%-2rem)] rounded-panel bg-surface p-0 text-content shadow-modal',
+        'm-auto max-h-(--modal-max-height) w-[calc(100%-2rem)] overflow-hidden rounded-panel bg-surface p-0 text-content shadow-modal',
         SIZE_CLASS[size],
       )}
     >
-      <div className="animate-modal-in flex flex-col">
-        <header className="flex items-start gap-4 border-b border-border px-6 py-4">
+      <div className="animate-modal-in flex max-h-(--modal-max-height) flex-col">
+        <header className="flex shrink-0 items-start gap-4 border-b border-border px-6 py-4">
           <div className="flex-1">
             <h2 id={titleId} className="text-lg font-semibold text-content">
               {title}
@@ -122,10 +122,10 @@ export function Modal({
           </button>
         </header>
 
-        {children && <div className="px-6 py-4">{children}</div>}
+        {children && <div className="min-h-0 overflow-y-auto px-6 py-4">{children}</div>}
 
         {footer && (
-          <footer className="flex justify-end gap-2 border-t border-border bg-surface-muted px-6 py-4">
+          <footer className="flex shrink-0 justify-end gap-2 border-t border-border bg-surface-muted px-6 py-4">
             {footer}
           </footer>
         )}

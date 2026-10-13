@@ -1,13 +1,15 @@
 import { apiClient } from './apiClient'
 import { uploadInterviewVideo } from './interviewVideoUpload'
 
-import type { ApiSuccessResponse, Paginated } from '@/types/api'
+import type { ApiSuccessResponse, PageResult, Paginated } from '@/types/api'
 import type {
   Answer,
   CreateInterviewPayload,
   CreateInterviewSessionPayload,
   CreateInterviewSessionResult,
   Interview,
+  InterviewSession,
+  StartInterviewSessionResult,
   Question,
   InterviewRecordingSignedParams,
   SaveAnswerPayload,
@@ -17,6 +19,21 @@ import type {
 } from '@/types/interview'
 
 export const interviewService = {
+  async listSessions(pageNumber = 1, pageSize = 20): Promise<PageResult<InterviewSession>> {
+    const { data } = await apiClient.get<ApiSuccessResponse<PageResult<InterviewSession>>>(
+      '/interview-session',
+      { params: { pageNumber, pageSize } },
+    )
+    return data.data
+  },
+
+  async startSession(sessionPublicId: string): Promise<StartInterviewSessionResult> {
+    const { data } = await apiClient.post<ApiSuccessResponse<StartInterviewSessionResult>>(
+      `/interview-session/${sessionPublicId}/start`,
+    )
+    return data.data
+  },
+
   /** Tạo phiên từ CV của người dùng hiện tại; response chỉ chứa publicId. */
   async createSession(
     payload: CreateInterviewSessionPayload,

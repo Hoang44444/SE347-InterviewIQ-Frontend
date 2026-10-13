@@ -1,75 +1,93 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Input,
-  Modal,
-  PageHeader,
-  Select,
-  Spinner,
-  Stack,
-} from '@/components/ui'
-import { KIND_OPTIONS, STATUS_LABEL, STATUS_TONE } from '@/constants/interview'
+import { CreateInterviewModal } from '@/components/interview/CreateInterviewModal'
+import { Badge, Button, Card, EmptyState, PageHeader, Spinner, Stack } from '@/components/ui'
+import { SESSION_STATUS_LABEL, SESSION_STATUS_TONE } from '@/constants/interview'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { useStartInterviewSession } from '@/hooks/useStartInterviewSession'
 import { useToast } from '@/hooks/useToast'
 import { ROUTES } from '@/routes/paths'
 import { interviewService } from '@/services/interviewService'
-import type { ApiError } from '@/types/api'
-import type { Interview, QuestionKind } from '@/types/interview'
+import type { ApiError, PageResult } from '@/types/api'
+import type {
+  CreatedInterviewSession,
+  InterviewSession,
+  InterviewRoomLocationState,
+} from '@/types/interview'
 import { formatDate } from '@/utils/format'
+import { isSessionId } from '@/utils/sessionId'
 
 export function InterviewListPage() {
   useDocumentTitle('Phòng phỏng vấn')
   const toast = useToast()
-
-  const [interviews, setInterviews] = useState<Interview[]>([])
+  const navigate = useNavigate()
+  const [pageNumber, setPageNumber] = useState(1)
+  const [page, setPage] = useState<PageResult<InterviewSession> | null>(null)
   const [loadError, setLoadError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isCreating, setIsCreating] = useState(false)
-  const [form, setForm] = useState({ title: '', position: '', kind: 'behavioral' as QuestionKind })
+  const requestRef = useRef(0)
 
-  useEffect(() => {
-    // Huỷ set state nếu component đã unmount trước khi request xong.
-    let active = true
-
-    interviewService
-      .list()
+  const loadPage = useCallback(() => {
+    const request = ++requestRef.current
+    return interviewService
+      .listSessions(pageNumber, 20)
       .then((result) => {
-        if (active) setInterviews(result.items)
+        if (request !== requestRef.current) return
+        setPage(result)
+        setLoadError('')
       })
-      .catch((err: ApiError) => {
-        if (active) setLoadError(err.message)
+      .catch((cause: ApiError) => {
+        if (request === requestRef.current) setLoadError(cause.message || 'Hãy thử lại.')
+        throw cause
       })
       .finally(() => {
-        if (active) setIsLoading(false)
+        if (request === requestRef.current) setIsLoading(false)
       })
+  }, [pageNumber])
 
+  const start = useStartInterviewSession({
+    reload: loadPage,
+    onStarted: (session) => {
+      setPage((previous) =>
+        previous
+          ? {
+              ...previous,
+              items: previous.items.map((item) =>
+                item.sessionPublicId === session.sessionPublicId ? session : item,
+              ),
+            }
+          : previous,
+      )
+      const state: InterviewRoomLocationState = { session }
+      navigate(ROUTES.interviewRoom(session.sessionPublicId), { state })
+    },
+  })
+
+  useEffect(() => {
+    void loadPage().catch(() => {})
     return () => {
-      active = false
+      requestRef.current += 1
     }
-  }, [])
+  }, [loadPage])
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setIsCreating(true)
-    try {
-      const created = await interviewService.create(form)
-      setInterviews((previous) => [created, ...previous])
-      setIsModalOpen(false)
-      setForm({ title: '', position: '', kind: 'behavioral' })
-      toast.success('Đã tạo buổi phỏng vấn', created.title)
-    } catch (err) {
-      toast.error('Không tạo được buổi phỏng vấn', (err as ApiError).message)
-    } finally {
-      setIsCreating(false)
-    }
+  function handleCreated(createdSession: CreatedInterviewSession) {
+    setIsModalOpen(false)
+    toast.success('Đã tạo phòng phỏng vấn', createdSession.title)
+    const state: InterviewRoomLocationState = { createdSession }
+    navigate(ROUTES.interviewRoom(createdSession.publicId), { state })
   }
+
+  function changePage(nextPage: number) {
+    setIsLoading(true)
+    setLoadError('')
+    setPageNumber(nextPage)
+  }
+
+  const items = page?.items ?? []
+  const isEmptyAccount =
+    items.length === 0 && pageNumber === 1 && !page?.hasNext && !page?.hasPrevious
 
   return (
     <Stack gap="lg">
@@ -78,93 +96,121 @@ export function InterviewListPage() {
         description="Danh sách các buổi luyện tập của bạn."
         actions={<Button onClick={() => setIsModalOpen(true)}>Tạo buổi mới</Button>}
       />
-
+      {start.error && (
+        <p role="alert" className="text-sm text-danger-700">
+          {start.error}
+        </p>
+      )}
+      {start.isSynchronizing && (
+        <p role="status" className="text-sm text-content-muted">
+          Đang đồng bộ phiên phỏng vấn…
+        </p>
+      )}
+      {loadError && (
+        <Stack gap="sm">
+          <p role="alert" className="rounded-card bg-warning-50 px-4 py-3 text-sm text-warning-700">
+            Chưa tải được danh sách: {loadError}
+          </p>
+          <Button
+            variant="secondary"
+            className="self-start"
+            onClick={() => void start.retryLoad()}
+            disabled={isLoading || start.isSynchronizing}
+          >
+            Tải lại
+          </Button>
+        </Stack>
+      )}
       {isLoading ? (
-        <div className="flex justify-center py-16">
+        <div role="status" aria-label="Đang tải danh sách" className="flex justify-center py-16">
           <Spinner size="lg" />
         </div>
       ) : (
         <>
-          {loadError && (
-            <p
-              role="alert"
-              className="rounded-card bg-warning-50 px-4 py-3 text-sm text-warning-700"
-            >
-              Chưa tải được danh sách: {loadError}. Kiểm tra backend và biến VITE_API_URL trong file
-              .env.
-            </p>
-          )}
-
-          {!loadError && interviews.length === 0 && (
+          {!loadError && items.length === 0 && (
             <EmptyState
-              title="Chưa có buổi phỏng vấn nào"
-              description="Tạo buổi đầu tiên để bắt đầu luyện tập."
-              action={<Button onClick={() => setIsModalOpen(true)}>Tạo buổi mới</Button>}
+              title={
+                isEmptyAccount ? 'Chưa có buổi phỏng vấn nào' : 'Trang này không có buổi phỏng vấn'
+              }
+              description={
+                isEmptyAccount
+                  ? 'Tạo buổi đầu tiên để bắt đầu luyện tập.'
+                  : 'Chọn trang trước để xem các buổi phỏng vấn khác.'
+              }
+              action={
+                isEmptyAccount ? (
+                  <Button onClick={() => setIsModalOpen(true)}>Tạo buổi mới</Button>
+                ) : undefined
+              }
             />
           )}
-
           <div className="grid gap-4 sm:grid-cols-2">
-            {interviews.map((interview) => (
-              <Link key={interview.id} to={ROUTES.interviewRoom(interview.id)}>
-                <Card interactive className="h-full">
+            {items.map((session) => (
+              <Card key={session.sessionPublicId} className="h-full">
+                <Stack gap="md">
                   <div className="flex items-start justify-between gap-3">
-                    <h2 className="font-semibold text-content">{interview.title}</h2>
-                    <Badge tone={STATUS_TONE[interview.status]}>
-                      {STATUS_LABEL[interview.status]}
+                    <h2 className="min-w-0 wrap-anywhere font-semibold text-content">
+                      <Link
+                        to={ROUTES.interviewRoom(session.sessionPublicId)}
+                        className="hover:underline focus-visible:outline-brand-600"
+                      >
+                        {session.title || 'Phòng phỏng vấn'}
+                      </Link>
+                    </h2>
+                    <Badge tone={SESSION_STATUS_TONE[session.status]}>
+                      {SESSION_STATUS_LABEL[session.status]}
                     </Badge>
                   </div>
-                  <p className="mt-1 text-sm text-content-muted">{interview.position}</p>
-                  <p className="mt-3 text-xs text-content-subtle">
-                    {interview.questionCount} câu hỏi &middot; {formatDate(interview.createdAt)}
+                  <p className="text-sm text-content-subtle">
+                    {session.totalQuestion} câu hỏi &middot; {formatDate(session.createdAt)}
                   </p>
-                </Card>
-              </Link>
+                  {session.status === 'CREATED' && (
+                    <Button
+                      className="self-start"
+                      onClick={() => void start.start(session)}
+                      disabled={
+                        start.isLocked || !!loadError || !isSessionId(session.sessionPublicId)
+                      }
+                      isLoading={start.startingId === session.sessionPublicId}
+                    >
+                      Bắt đầu
+                    </Button>
+                  )}
+                </Stack>
+              </Card>
             ))}
           </div>
         </>
       )}
-
-      <Modal
-        open={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Tạo buổi phỏng vấn"
-        description="Điền thông tin để hệ thống sinh bộ câu hỏi phù hợp."
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
-              Huỷ
+      {page && (
+        <nav
+          aria-label="Phân trang buổi phỏng vấn"
+          className="flex flex-wrap items-center justify-between gap-3"
+        >
+          <p className="text-sm text-content-muted">
+            Trang {page.currentPage} / {Math.max(1, page.totalPages)}
+          </p>
+          <Stack direction="row" gap="sm">
+            <Button
+              variant="secondary"
+              disabled={!page.hasPrevious || isLoading || start.isLocked || !!loadError}
+              onClick={() => changePage(page.currentPage - 1)}
+            >
+              Trang trước
             </Button>
-            <Button type="submit" form="create-interview-form" isLoading={isCreating}>
-              Tạo buổi
+            <Button
+              variant="secondary"
+              disabled={!page.hasNext || isLoading || start.isLocked || !!loadError}
+              onClick={() => changePage(page.currentPage + 1)}
+            >
+              Trang sau
             </Button>
-          </>
-        }
-      >
-        <form id="create-interview-form" onSubmit={handleCreate}>
-          <Stack gap="md">
-            <Input
-              label="Tiêu đề"
-              required
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="Phỏng vấn Frontend vòng 1"
-            />
-            <Input
-              label="Vị trí ứng tuyển"
-              required
-              value={form.position}
-              onChange={(e) => setForm({ ...form, position: e.target.value })}
-              placeholder="Frontend Developer"
-            />
-            <Select
-              label="Loại câu hỏi"
-              options={KIND_OPTIONS}
-              value={form.kind}
-              onChange={(e) => setForm({ ...form, kind: e.target.value as QuestionKind })}
-            />
           </Stack>
-        </form>
-      </Modal>
+        </nav>
+      )}
+      {isModalOpen && (
+        <CreateInterviewModal onClose={() => setIsModalOpen(false)} onCreated={handleCreated} />
+      )}
     </Stack>
   )
 }
