@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient'
+import { uploadInterviewVideo } from './interviewVideoUpload'
 
 import type { ApiSuccessResponse, Paginated } from '@/types/api'
 import type {
@@ -8,6 +9,11 @@ import type {
   CreateInterviewSessionResult,
   Interview,
   Question,
+  InterviewRecordingSignedParams,
+  SaveAnswerPayload,
+  ScoringJob,
+  SubmitInterviewSessionResult,
+  SubmitInterviewSessionPayload,
 } from '@/types/interview'
 
 export const interviewService = {
@@ -46,7 +52,42 @@ export const interviewService = {
     return data.data
   },
 
-  async submitAnswer(id: string, answer: Answer): Promise<void> {
-    await apiClient.post(`/interviews/${id}/answers`, answer)
+  async getAnswerSignedParams(
+    id: string,
+    questionId: string,
+  ): Promise<InterviewRecordingSignedParams> {
+    const { data } = await apiClient.post<ApiSuccessResponse<InterviewRecordingSignedParams>>(
+      `/interview-session/${id}/questions/${questionId}/answer/signed-params`,
+    )
+    return data.data
+  },
+
+  uploadAnswerVideo: uploadInterviewVideo,
+
+  async submitAnswer(id: string, questionId: string, payload: SaveAnswerPayload): Promise<Answer> {
+    const { data } = await apiClient.put<ApiSuccessResponse<Answer>>(
+      `/interview-session/${id}/questions/${questionId}/answer`,
+      payload,
+    )
+    return data.data
+  },
+
+  async finishSession(
+    id: string,
+    payload: SubmitInterviewSessionPayload,
+  ): Promise<SubmitInterviewSessionResult> {
+    const { data } = await apiClient.post<ApiSuccessResponse<SubmitInterviewSessionResult>>(
+      `/interview-session/${id}/submit`,
+      payload,
+    )
+    return data.data
+  },
+
+  async getScoringJobStatus(jobId: string, signal?: AbortSignal): Promise<ScoringJob> {
+    const { data } = await apiClient.get<ApiSuccessResponse<ScoringJob>>(
+      `/scoring/jobs/${jobId}/status`,
+      { signal },
+    )
+    return data.data
   },
 }
