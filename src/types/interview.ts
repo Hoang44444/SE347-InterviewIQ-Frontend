@@ -2,6 +2,27 @@ import type { InterviewRecording } from '@/types/recording'
 
 export type InterviewStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled'
 
+export type InterviewSessionStatus =
+  'CREATED' | 'IN_PROGRESS' | 'SUBMITTED' | 'SCORING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+
+export interface InterviewSession {
+  sessionPublicId: string
+  cvPublicId: string | null
+  title: string
+  status: InterviewSessionStatus
+  totalQuestion: number
+  jobDescription: string | null
+  createdAt: string
+  /** Chỉ có sau response Start; API danh sách không trả trường này. */
+  startedAt?: string
+}
+
+export interface StartInterviewSessionResult {
+  sessionPublicId: string
+  status: 'IN_PROGRESS'
+  startedAt: string
+}
+
 export type QuestionKind = 'behavioral' | 'technical' | 'coding'
 
 export interface Question {
@@ -114,4 +135,15 @@ export interface CreateInterviewSessionPayload {
 
 export interface CreateInterviewSessionResult {
   publicId: string
+}
+
+/** Thông tin vừa tạo để mở phòng CREATED trước khi backend cung cấp câu hỏi. */
+export interface CreatedInterviewSession extends CreateInterviewSessionResult {
+  title: string
+  cvFileName: string
+}
+
+export interface InterviewRoomLocationState {
+  createdSession?: CreatedInterviewSession
+  session?: InterviewSession
 }

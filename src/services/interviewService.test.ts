@@ -8,10 +8,73 @@ import { STORAGE_KEYS } from '@/constants'
 import { answer, signedParams } from '@/test/interviewFixtures'
 import { storage } from '@/utils/storage'
 
+test('lists session pages and starts without a body using the authenticated client and envelope', async () => {
+  const requests: InternalAxiosRequestConfig[] = []
+  const page = {
+    items: [
+      {
+        sessionPublicId: 'session',
+        cvPublicId: null,
+        jobDescription: null,
+        title: 'Session',
+        status: 'CREATED',
+        totalQuestion: 0,
+        createdAt: '2026-10-13',
+      },
+    ],
+    totalPages: 3,
+    currentPage: 2,
+    pageNumber: 2,
+    pageSize: 20,
+    hasPrevious: true,
+    hasNext: true,
+  }
+  const started = {
+    sessionPublicId: 'session',
+    status: 'IN_PROGRESS',
+    startedAt: '2026-10-13T08:00:00.000Z',
+  }
+  apiClient.defaults.adapter = async (config) => {
+    requests.push(config)
+    return {
+      data: { success: true, data: config.method === 'post' ? started : page },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+  storage.set(STORAGE_KEYS.accessToken, 'test-token')
+  expect(await interviewService.listSessions(2, 20)).toEqual(page)
+  expect(await interviewService.listSessions()).toEqual(page)
+  expect(await interviewService.startSession('session')).toEqual(started)
+  expect(requests.map(({ method, url, params }) => [method, url, params])).toEqual([
+    ['get', '/interview-session', { pageNumber: 2, pageSize: 20 }],
+    ['get', '/interview-session', { pageNumber: 1, pageSize: 20 }],
+    ['post', '/interview-session/session/start', undefined],
+  ])
+  expect(requests[2].data).toBeUndefined()
+  for (const request of requests) expect(request.headers.Authorization).toBe('Bearer test-token')
+})
+
 const originalAdapter = apiClient.defaults.adapter
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
   localStorage.clear()
+})
+
+test('session API 401 uses existing interceptor to clear credentials and redirect to login', async () => {
+  const assign = vi.fn()
+  vi.stubGlobal('window', { location: { pathname: '/interviews', assign } })
+  storage.set(STORAGE_KEYS.accessToken, 'expired-token')
+  storage.set(STORAGE_KEYS.refreshToken, 'refresh-token')
+  storage.set(STORAGE_KEYS.user, { id: 'user' })
+  apiClient.defaults.adapter = async () => {
+    throw { response: { status: 401, data: { message: 'Expired' } } }
+  }
+  await expect(interviewService.startSession('session')).rejects.toMatchObject({ status: 401 })
+  expect(assign).toHaveBeenCalledWith('/login')
+  for (const key of Object.values(STORAGE_KEYS)) expect(storage.get(key)).toBeNull()
 })
 
 test('signs, PUTs only asset/transcript, submits and reads status through authenticated API', async () => {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 
+import { InterviewSessionRoom } from '@/components/interview/InterviewSessionRoom'
 import { InterviewRecorder, QuestionNavigator, RecordingPlayback } from '@/components/interview'
 import {
   Badge,
@@ -24,13 +25,19 @@ import { useToast } from '@/hooks/useToast'
 import { ROUTES } from '@/routes/paths'
 import { interviewService } from '@/services/interviewService'
 import type { ApiError } from '@/types/api'
-import type { Interview, InterviewRoomService, Question } from '@/types/interview'
+import type {
+  Interview,
+  InterviewRoomLocationState,
+  InterviewRoomService,
+  Question,
+} from '@/types/interview'
 import { formatDuration } from '@/utils/format'
 
 export function InterviewRoomPage() {
   const { id = '' } = useParams<{ id: string }>()
-  // Đổi phòng phải huỷ quyền đang chờ và toàn bộ tài nguyên của phòng trước.
-  return <InterviewRoom key={id} id={id} />
+  const { state } = useLocation()
+  const session = (state as InterviewRoomLocationState | null)?.session
+  return <InterviewSessionRoom key={id} id={id} knownSession={session} />
 }
 
 export function InterviewRoom({
@@ -292,7 +299,7 @@ export function InterviewRoom({
         <PageHeader title={interview ? interview.title : 'Phòng phỏng vấn'} />
         <EmptyState
           title="Buổi này chưa có câu hỏi nào"
-          description="Quay lại danh sách và tạo buổi mới để hệ thống sinh bộ câu hỏi."
+          description="Phòng hiện chưa có câu hỏi để bắt đầu phỏng vấn."
           action={
             <Link to={ROUTES.interviews}>
               <Button variant="secondary">Về danh sách</Button>
