@@ -68,6 +68,8 @@ export interface CvSignedParams {
   cloudinaryPublicId: string
   /** Gửi lên Cloudinary với tên `allowed_formats`. */
   allowedFormats: string
+  /** Gửi lên Cloudinary với tên `asset_folder`. */
+  assetFolder: string
 }
 
 export interface CreateCvPayload {
