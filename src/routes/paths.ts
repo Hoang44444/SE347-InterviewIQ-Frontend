@@ -4,6 +4,7 @@ export const ROUTES = {
   login: '/login',
   register: '/register',
   dashboard: '/dashboard',
+  cvs: '/cvs',
   interviews: '/interviews',
   interviewRoom: (id: string) => `/interviews/${id}`,
   devInterviewRoom: '/dev/interview-room',
