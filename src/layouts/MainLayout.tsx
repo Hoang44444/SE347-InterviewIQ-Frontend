@@ -9,6 +9,7 @@ import { ROUTES } from '@/routes/paths'
 const NAV_ITEMS: NavItem[] = [
   { to: ROUTES.dashboard, label: 'Tổng quan' },
   { to: ROUTES.interviews, label: 'Phòng phỏng vấn' },
+  { to: ROUTES.cvs, label: 'CV của tôi' },
   { to: ROUTES.profile, label: 'Hồ sơ' },
   { to: ROUTES.designSystem, label: 'Design system' },
 ]

@@ -11,3 +11,16 @@ export function formatDate(iso: string): string {
   if (Number.isNaN(date.getTime())) return '-'
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(date)
 }
+
+/** Đổi số byte thành "412 KB" / "1,3 MB" cho người dùng đọc. */
+export function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+/** Đổi "2024-07" thành "07/2024". Không có giá trị nghĩa là còn đang diễn ra. */
+export function formatYearMonth(value: string | null): string {
+  if (!value) return 'Hiện tại'
+  const [year, month] = value.split('-')
+  return month ? `${month}/${year}` : (year ?? value)
+}
