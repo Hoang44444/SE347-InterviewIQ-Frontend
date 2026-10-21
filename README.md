@@ -42,7 +42,7 @@ Khai báo trong `.env` ở thư mục gốc. Vite chỉ đọc biến có tiền
 
 | Biến | Mặc định | Ý nghĩa |
 | --- | --- | --- |
-| `VITE_API_URL` | `http://localhost:8080/api` | Base URL của backend |
+| `VITE_API_URL` | `http://localhost:3000/api` | Base URL của backend |
 | `VITE_APP_NAME` | `InterviewIQ` | Tên app hiển thị trên UI |
 
 `.env` đã bị `.gitignore` bỏ qua — **không commit**. Thêm biến mới thì cập nhật luôn `.env.example`.

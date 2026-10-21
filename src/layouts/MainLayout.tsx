@@ -33,7 +33,9 @@ export function MainLayout() {
         actions={
           isAuthenticated ? (
             <>
-              <span className="hidden text-sm text-content-muted sm:inline">{user?.fullName}</span>
+              <span className="hidden text-sm text-content-muted sm:inline">
+                {user?.fullName ?? user?.email}
+              </span>
               <Button variant="secondary" size="sm" onClick={handleLogout}>
                 Đăng xuất
               </Button>

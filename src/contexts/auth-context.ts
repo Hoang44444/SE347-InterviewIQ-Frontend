@@ -1,6 +1,6 @@
 import { createContext } from 'react'
 
-import type { LoginPayload, RegisterPayload, User } from '@/types/auth'
+import type { LoginPayload, User, VerifyRegistrationPayload } from '@/types/auth'
 
 export interface AuthContextValue {
   user: User | null
@@ -8,7 +8,11 @@ export interface AuthContextValue {
   isLoading: boolean
   isAuthenticated: boolean
   login: (payload: LoginPayload) => Promise<void>
-  register: (payload: RegisterPayload) => Promise<void>
+  /**
+   * Bước cuối của đăng ký: xác nhận OTP rồi lưu phiên đăng nhập.
+   * Bước gửi OTP không đổi trạng thái đăng nhập nên trang gọi thẳng authService.
+   */
+  verifyRegistration: (payload: VerifyRegistrationPayload, fullName?: string) => Promise<void>
   logout: () => Promise<void>
 }
 

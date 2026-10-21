@@ -12,6 +12,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
+import { VerifyRegistrationPage } from '@/pages/auth/VerifyRegistrationPage'
 import { InterviewListPage } from '@/pages/interview/InterviewListPage'
 import { InterviewRoomPage } from '@/pages/interview/InterviewRoomPage'
 
@@ -29,6 +30,7 @@ export function AppRoutes() {
       <Route element={<AuthLayout />}>
         <Route path={ROUTES.login} element={<LoginPage />} />
         <Route path={ROUTES.register} element={<RegisterPage />} />
+        <Route path={ROUTES.registerVerify} element={<VerifyRegistrationPage />} />
       </Route>
 
       {/* Trang cần đăng nhập */}

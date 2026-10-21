@@ -3,6 +3,7 @@ export const ROUTES = {
   home: '/',
   login: '/login',
   register: '/register',
+  registerVerify: '/register/verify',
   dashboard: '/dashboard',
   interviews: '/interviews',
   interviewRoom: (id: string) => `/interviews/${id}`,
