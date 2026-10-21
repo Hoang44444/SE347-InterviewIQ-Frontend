@@ -3,6 +3,9 @@
  * AuthService). Backend vẫn kiểm tra lại, FE chỉ dùng để báo lỗi sớm và
  * hiển thị đồng hồ. Backend đổi luật thì sửa ở đây.
  */
+/** Chỉ bắt lỗi gõ nhầm. Backend kiểm tra lại bằng IsEmail. */
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export const FULL_NAME_MAX_LENGTH = 100
 export const PASSWORD_MIN_LENGTH = 8
 /** bcrypt chỉ đọc 72 byte đầu nên backend chặn ở 72. */

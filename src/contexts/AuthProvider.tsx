@@ -1,8 +1,10 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { AuthContext, type AuthContextValue } from './auth-context'
 
 import { STORAGE_KEYS } from '@/constants'
+import { useToast } from '@/hooks/useToast'
+import { setSessionExpiredHandler } from '@/services/apiClient'
 import { authService } from '@/services/authService'
 import type { ApiError } from '@/types/api'
 import type {
@@ -43,6 +45,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * setIsLoading(false) trong .finally().
    */
   const [isLoading] = useState(false)
+
+  const toast = useToast()
+
+  // Refresh token hết hạn hoặc bị thu hồi: apiClient đã xoá storage, ở đây chỉ cần
+  // bỏ user để ProtectedRoute đưa về trang đăng nhập (nhớ trang đang mở để quay lại).
+  useEffect(
+    () =>
+      setSessionExpiredHandler((hadSession) => {
+        setUser(null)
+        if (hadSession) {
+          toast.warning('Phiên đăng nhập đã hết hạn', 'Vui lòng đăng nhập lại để tiếp tục.')
+        }
+      }),
+    [toast],
+  )
 
   const persist = useCallback((tokens: AuthTokens, profile: Pick<User, 'email' | 'fullName'>) => {
     // Dựng user trước khi ghi gì xuống storage: token hỏng thì không để lại phiên dở dang.

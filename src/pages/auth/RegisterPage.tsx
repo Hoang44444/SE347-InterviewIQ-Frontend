@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { RegisterSteps } from '@/components/auth'
 import { Button, Input, Stack } from '@/components/ui'
 import {
+  EMAIL_PATTERN,
   FULL_NAME_MAX_LENGTH,
   OTP_RESEND_COOLDOWN_SECONDS,
   PASSWORD_MAX_LENGTH,
@@ -21,9 +22,6 @@ type FieldErrors = Partial<Record<FormField, string>>
 
 /** Đúng thứ tự trên form, để đưa con trỏ tới ô lỗi đầu tiên. */
 const FIELD_ORDER: FormField[] = ['fullName', 'email', 'password', 'confirm']
-
-/** Chỉ bắt lỗi gõ nhầm. Backend kiểm tra lại bằng IsEmail. */
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const fieldId = (field: FormField) => `register-${field}`
 
