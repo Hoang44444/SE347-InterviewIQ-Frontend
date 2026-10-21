@@ -1,10 +1,11 @@
+import axios from 'axios'
 import type { InternalAxiosRequestConfig } from 'axios'
 import { afterEach, expect, test, vi } from 'vitest'
 
-import { apiClient } from './apiClient'
+import { apiClient, setSessionExpiredHandler } from './apiClient'
 import { interviewService } from './interviewService'
 
-import { STORAGE_KEYS } from '@/constants'
+import { API_URL, STORAGE_KEYS } from '@/constants'
 import { answer, signedParams } from '@/test/interviewFixtures'
 import { storage } from '@/utils/storage'
 
@@ -63,18 +64,56 @@ afterEach(() => {
   localStorage.clear()
 })
 
-test('session API 401 uses existing interceptor to clear credentials and redirect to login', async () => {
-  const assign = vi.fn()
-  vi.stubGlobal('window', { location: { pathname: '/interviews', assign } })
+test('session API 401 refreshes the token pair once and retries with the new access token', async () => {
+  const sentTokens: unknown[] = []
+  const started = { sessionPublicId: 'session', status: 'IN_PROGRESS', startedAt: '2026-10-13' }
+  storage.set(STORAGE_KEYS.accessToken, 'expired-token')
+  storage.set(STORAGE_KEYS.refreshToken, 'refresh-token')
+  apiClient.defaults.adapter = async (config) => {
+    sentTokens.push(config.headers.Authorization)
+    if (config.headers.Authorization === 'Bearer expired-token') {
+      throw { config, response: { status: 401, data: { message: 'Unauthorized' } } }
+    }
+    return {
+      data: { success: true, data: started },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+  const refresh = vi.spyOn(axios, 'post').mockResolvedValue({
+    data: { success: true, data: { accessToken: 'new-access', refreshToken: 'new-refresh' } },
+  })
+
+  expect(await interviewService.startSession('session')).toEqual(started)
+  expect(refresh).toHaveBeenCalledTimes(1)
+  expect(refresh.mock.calls[0].slice(0, 2)).toEqual([
+    `${API_URL}/auth/refresh`,
+    { refreshToken: 'refresh-token' },
+  ])
+  expect(sentTokens).toEqual(['Bearer expired-token', 'Bearer new-access'])
+  expect(storage.get(STORAGE_KEYS.refreshToken)).toBe('new-refresh')
+})
+
+test('session API 401 with a rejected refresh token clears credentials and ends the session', async () => {
+  const onSessionExpired = vi.fn()
+  const unregister = setSessionExpiredHandler(onSessionExpired)
   storage.set(STORAGE_KEYS.accessToken, 'expired-token')
   storage.set(STORAGE_KEYS.refreshToken, 'refresh-token')
   storage.set(STORAGE_KEYS.user, { id: 'user' })
-  apiClient.defaults.adapter = async () => {
-    throw { response: { status: 401, data: { message: 'Expired' } } }
+  apiClient.defaults.adapter = async (config) => {
+    throw { config, response: { status: 401, data: { message: 'Unauthorized' } } }
   }
+  vi.spyOn(axios, 'post').mockRejectedValue({
+    isAxiosError: true,
+    response: { status: 401, data: { message: 'Invalid refresh token' } },
+  })
+
   await expect(interviewService.startSession('session')).rejects.toMatchObject({ status: 401 })
-  expect(assign).toHaveBeenCalledWith('/login')
+  expect(onSessionExpired).toHaveBeenCalledExactlyOnceWith(true)
   for (const key of Object.values(STORAGE_KEYS)) expect(storage.get(key)).toBeNull()
+  unregister()
 })
 
 test('signs, PUTs only asset/transcript, submits and reads status through authenticated API', async () => {
