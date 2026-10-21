@@ -35,6 +35,17 @@ export interface Paginated<T> {
   total: number
 }
 
+/** Metadata phân trang của GET /interview-session. */
+export interface PageResult<T> {
+  items: T[]
+  totalPages: number
+  currentPage: number
+  pageNumber: number
+  pageSize: number
+  hasPrevious: boolean
+  hasNext: boolean
+}
+
 /** Lỗi đã được chuẩn hoá từ interceptor, UI chỉ cần đọc message. */
 export interface ApiError {
   status: number

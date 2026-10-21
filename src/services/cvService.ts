@@ -50,6 +50,7 @@ export const cvService = {
     form.append('signature', params.signature)
     form.append('public_id', params.cloudinaryPublicId)
     form.append('allowed_formats', params.allowedFormats)
+    form.append('asset_folder', params.assetFolder)
 
     try {
       // Không tự đặt Content-Type: trình duyệt tự thêm multipart/form-data kèm boundary.

@@ -5,8 +5,10 @@ export const ROUTES = {
   register: '/register',
   registerVerify: '/register/verify',
   dashboard: '/dashboard',
+  cvs: '/cvs',
   interviews: '/interviews',
   interviewRoom: (id: string) => `/interviews/${id}`,
+  devInterviewRoom: '/dev/interview-room',
   profile: '/profile',
   designSystem: '/design-system',
 } as const
