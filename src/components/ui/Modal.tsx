@@ -88,10 +88,19 @@ export function Modal({
       className={cn(
         // Preflight của Tailwind xoá margin nên phải trả lại m-auto để dialog nằm giữa.
         'm-auto max-h-(--modal-max-height) w-[calc(100%-2rem)] overflow-hidden rounded-panel bg-surface p-0 text-content shadow-modal',
+        /*
+         * Mở: nổi lên và rõ dần (220ms, giảm tốc). Đóng: lặn xuống nhanh hơn (150ms, tăng tốc).
+         * transition-discrete giữ dialog hiển thị tới khi chạy xong hiệu ứng đóng;
+         * starting: là trạng thái xuất phát lúc vừa mở. Trình duyệt cũ thì mở/đóng ngay.
+         */
+        'translate-y-2 scale-[0.98] opacity-0 transition-discrete',
+        'transition-[opacity,scale,translate,display,overlay] duration-150 ease-in-quick',
+        'open:translate-y-0 open:scale-100 open:opacity-100 open:duration-[220ms] open:ease-out-soft',
+        'starting:open:translate-y-2 starting:open:scale-[0.98] starting:open:opacity-0',
         SIZE_CLASS[size],
       )}
     >
-      <div className="animate-modal-in flex max-h-(--modal-max-height) flex-col">
+      <div className="flex max-h-(--modal-max-height) flex-col">
         <header className="flex shrink-0 items-start gap-4 border-b border-border px-6 py-4">
           <div className="flex-1">
             <h2 id={titleId} className="text-lg font-semibold text-content">

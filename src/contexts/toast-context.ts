@@ -15,6 +15,8 @@ export interface ToastItem {
   title: string
   description?: string
   tone: ToastTone
+  /** Đang chạy hiệu ứng ra, sắp bị gỡ khỏi danh sách. */
+  leaving?: boolean
 }
 
 export interface ToastContextValue {

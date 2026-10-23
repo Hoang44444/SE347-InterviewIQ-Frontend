@@ -8,7 +8,8 @@ export default function App() {
   return (
     <ToastProvider>
       <AuthProvider>
-        <BrowserRouter>
+        {/* Cập nhật route đồng bộ để useViewTransitionNavigate chụp được trang mới. */}
+        <BrowserRouter useTransitions={false}>
           <AppRoutes />
         </BrowserRouter>
       </AuthProvider>

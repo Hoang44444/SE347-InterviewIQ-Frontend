@@ -29,7 +29,7 @@ export function Navbar({ brand, brandTo, items = [], actions }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-[var(--z-navbar)] border-b border-border bg-surface">
+    <header className="sticky top-0 z-[var(--z-navbar)] border-b border-border bg-surface/85 backdrop-blur-sm">
       <Container>
         <div className="flex h-16 items-center gap-6">
           <Link to={brandTo} className="text-lg font-bold text-brand-600">
@@ -74,7 +74,7 @@ export function Navbar({ brand, brandTo, items = [], actions }: NavbarProps) {
 
         {/* Menu dọc bung ra trên màn hình hẹp */}
         {isMenuOpen && items.length > 0 && (
-          <nav className="flex flex-col gap-1 border-t border-border py-3 md:hidden">
+          <nav className="flex animate-menu-in flex-col gap-1 border-t border-border py-3 md:hidden">
             {items.map((item) => (
               <NavLink
                 key={item.to}

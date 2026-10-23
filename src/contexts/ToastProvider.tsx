@@ -12,6 +12,9 @@ import { ToastViewport } from '@/components/ui/Toast'
 /** Toast tự ẩn sau 4 giây nếu không nói gì khác. */
 const DEFAULT_DURATION = 4000
 
+/** Khớp với --animate-toast-out trong tokens.css: chạy xong hiệu ứng ra mới gỡ toast. */
+const EXIT_DURATION = 150
+
 /** Nhiều hơn số này thì bỏ cái cũ nhất, tránh phủ kín màn hình. */
 const MAX_VISIBLE = 4
 
@@ -34,12 +37,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const dismiss = useCallback((id: string) => {
     const timers = timersRef.current
+    const leaveKey = `${id}:leave`
+    // Đã đang rời đi thì thôi, tránh bấm đóng hai lần làm hẹn giờ chồng nhau.
+    if (timers.has(leaveKey)) return
     const timer = timers.get(id)
     if (timer !== undefined) {
       clearTimeout(timer)
       timers.delete(id)
     }
-    setToasts((previous) => previous.filter((toast) => toast.id !== id))
+    // Đánh dấu rời đi để chạy hiệu ứng ra, sau đó mới thật sự gỡ khỏi danh sách.
+    setToasts((previous) =>
+      previous.map((toast) => (toast.id === id ? { ...toast, leaving: true } : toast)),
+    )
+    timers.set(
+      leaveKey,
+      window.setTimeout(() => {
+        timers.delete(leaveKey)
+        setToasts((previous) => previous.filter((toast) => toast.id !== id))
+      }, EXIT_DURATION),
+    )
   }, [])
 
   const show = useCallback(

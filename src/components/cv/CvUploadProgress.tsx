@@ -55,9 +55,10 @@ export function CvUploadProgress({ file, stage, progress, onCancel }: CvUploadPr
           aria-valuenow={percent}
           className="h-1.5 overflow-hidden rounded-full bg-surface-sunken"
         >
+          {/* Co giãn bằng scale (chỉ chạy trên compositor), không animate width. */}
           <div
-            className="h-full rounded-full bg-brand-600 transition-[width] duration-200"
-            style={{ width: `${percent}%` }}
+            className="h-full origin-left bg-brand-600 transition-[scale] duration-300 ease-out-soft"
+            style={{ scale: `${percent / 100} 1` }}
           />
         </div>
 
