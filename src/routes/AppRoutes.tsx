@@ -13,6 +13,7 @@ import { ProfilePage } from '@/pages/ProfilePage'
 import { CvPage } from '@/pages/cv/CvPage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
+import { VerifyRegistrationPage } from '@/pages/auth/VerifyRegistrationPage'
 import { InterviewListPage } from '@/pages/interview/InterviewListPage'
 import { InterviewRoomPage } from '@/pages/interview/InterviewRoomPage'
 import { InterviewRoomDemoPage } from '@/pages/interview/InterviewRoomDemoPage'
@@ -34,6 +35,7 @@ export function AppRoutes() {
       <Route element={<AuthLayout />}>
         <Route path={ROUTES.login} element={<LoginPage />} />
         <Route path={ROUTES.register} element={<RegisterPage />} />
+        <Route path={ROUTES.registerVerify} element={<VerifyRegistrationPage />} />
       </Route>
 
       {/* Trang cần đăng nhập */}

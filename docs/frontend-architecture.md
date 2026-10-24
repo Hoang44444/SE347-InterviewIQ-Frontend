@@ -41,7 +41,7 @@ Add each new path to `src/routes/paths.ts` before declaring its `<Route>`. Do no
 
 ## Data and Authentication
 
-`apiClient.ts` configures the base URL, request timeout, bearer token, and error normalization into `ApiError`. A `401` response clears the local session and redirects to the login page. `AuthProvider` stores the current user and exposes `login`, `register`, and `logout` through `useAuth()`.
+`apiClient.ts` configures the base URL, request timeout, bearer token, and error normalization into `ApiError`. When a protected request returns `401`, it calls `POST /auth/refresh` once, stores the new token pair, and retries the request. Concurrent `401`s share one in-flight refresh (and a Web Lock across tabs), because the backend rotates the refresh token and rejects reuse of the old one. Only when the backend rejects the refresh token does the client clear the session and notify `AuthProvider`, which drops the user so `ProtectedRoute` redirects to the login page; network or `5xx` failures during refresh keep the session. Requests to `/auth/*` never trigger a refresh: a `401` from `/auth/login` means wrong credentials. `AuthProvider` stores the current user and exposes `login`, `verifyRegistration`, and `logout` through `useAuth()`.
 
 Backend envelope contracts live in `src/types/api.ts`; `src/shared/apiResponse.ts` re-exports these types. `ApiSuccessResponse<T>` contains `statusCode`, `success: true`, `data`, `message`, and `timestamp`. `ApiErrorResponse` contains `statusCode`, `success: false`, `code`, `message`, optional validation `errors`, `path`, and `timestamp`. `ApiResponse<T>` is the union of both envelopes. Domain services type successful requests as `ApiSuccessResponse<T>` and return the nested `data` payload.
 
