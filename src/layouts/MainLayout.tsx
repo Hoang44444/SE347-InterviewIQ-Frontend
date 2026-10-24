@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Link, Outlet, useNavigate } from 'react-router-dom'
 
-import { Button, Container, Modal, Navbar, type NavItem } from '@/components/ui'
+import { Avatar, Button, Container, Modal, Navbar, type NavItem } from '@/components/ui'
 import { APP_NAME } from '@/constants'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
@@ -45,9 +45,20 @@ export function MainLayout() {
         actions={
           isAuthenticated ? (
             <>
-              <span className="hidden text-sm text-content-muted sm:inline">
-                {user?.fullName ?? user?.email}
-              </span>
+              {/* Bấm vào ảnh hoặc tên để vào trang hồ sơ, như thói quen ở các app khác. */}
+              <Link
+                to={ROUTES.profile}
+                className="flex items-center gap-2 rounded-control px-1 py-1 transition hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              >
+                <Avatar
+                  src={user?.avatarUrl}
+                  name={user?.fullName ?? user?.email ?? ''}
+                  size="sm"
+                />
+                <span className="hidden text-sm text-content-muted sm:inline">
+                  {user?.fullName ?? user?.email}
+                </span>
+              </Link>
               <Button variant="secondary" size="sm" onClick={() => setIsLogoutOpen(true)}>
                 Đăng xuất
               </Button>

@@ -1,6 +1,7 @@
 import { createContext } from 'react'
 
 import type { LoginPayload, User, VerifyRegistrationPayload } from '@/types/auth'
+import type { UserProfile } from '@/types/user'
 
 export interface AuthContextValue {
   user: User | null
@@ -14,6 +15,12 @@ export interface AuthContextValue {
    */
   verifyRegistration: (payload: VerifyRegistrationPayload, fullName?: string) => Promise<void>
   logout: () => Promise<void>
+  /**
+   * Cập nhật hồ sơ đang giữ trong phiên bằng dữ liệu backend vừa trả về,
+   * để thanh điều hướng đổi tên và ảnh ngay sau khi người dùng lưu.
+   * Không gọi API: trang Hồ sơ đã có hồ sơ mới trong tay.
+   */
+  applyProfile: (profile: UserProfile) => void
 }
 
 /**

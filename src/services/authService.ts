@@ -3,6 +3,7 @@ import { apiClient } from './apiClient'
 import type { ApiSuccessResponse } from '@/types/api'
 import type {
   AuthTokens,
+  ChangePasswordPayload,
   LoginPayload,
   RegisterPayload,
   RegisterResult,
@@ -49,5 +50,14 @@ export const authService = {
   /** Thu hồi refresh token của thiết bị này. Không cần access token còn hạn. */
   async logout(refreshToken: string): Promise<void> {
     await apiClient.post('/auth/logout', { refreshToken })
+  },
+
+  /**
+   * Đổi mật khẩu của người đang đăng nhập. Backend thu hồi refresh token của MỌI
+   * thiết bị, nên gọi xong phải xoá phiên và đăng nhập lại.
+   * 401 = mật khẩu hiện tại sai, 400 = mật khẩu mới trùng mật khẩu cũ.
+   */
+  async changePassword(payload: ChangePasswordPayload): Promise<void> {
+    await apiClient.post('/auth/password/change', payload)
   },
 }

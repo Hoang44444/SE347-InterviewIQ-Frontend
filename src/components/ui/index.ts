@@ -6,6 +6,7 @@
  * Không import thẳng vào từng file để sau này đổi cấu trúc bên trong
  * mà không phải sửa hàng loạt chỗ gọi.
  */
+export { Avatar, type AvatarProps } from './Avatar'
 export { Badge, type BadgeProps } from './Badge'
 export { Button, type ButtonProps } from './Button'
 export { Card, type CardProps } from './Card'

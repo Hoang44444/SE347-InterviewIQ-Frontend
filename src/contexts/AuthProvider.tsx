@@ -6,6 +6,7 @@ import { STORAGE_KEYS } from '@/constants'
 import { useToast } from '@/hooks/useToast'
 import { setSessionExpiredHandler } from '@/services/apiClient'
 import { authService } from '@/services/authService'
+import { userService } from '@/services/userService'
 import type { ApiError } from '@/types/api'
 import type {
   AuthTokens,
@@ -14,6 +15,7 @@ import type {
   UserRole,
   VerifyRegistrationPayload,
 } from '@/types/auth'
+import type { UserProfile } from '@/types/user'
 import { decodeAccessToken } from '@/utils/jwt'
 import { storage } from '@/utils/storage'
 
@@ -23,7 +25,8 @@ function isUserRole(role: string): role is UserRole {
 
 /**
  * Backend chỉ trả cặp token, không kèm hồ sơ: id và role đọc từ access token,
- * phần còn lại lấy từ những gì người dùng vừa nhập.
+ * phần còn lại tạm lấy từ những gì người dùng vừa nhập cho tới khi
+ * GET /users/me trả về hồ sơ thật.
  */
 function toUser(accessToken: string, profile: Pick<User, 'email' | 'fullName'>): User {
   const claims = decodeAccessToken(accessToken)
@@ -39,10 +42,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => storage.get<User>(STORAGE_KEYS.user))
 
   /**
-   * Phiên được khôi phục đồng bộ nên mặc định không có trạng thái chờ.
-   * Backend chưa có endpoint trả hồ sơ người dùng; khi có thì gọi nó ở đây để
-   * xác thực token lúc mở app, đổi giá trị khởi tạo thành true và
-   * setIsLoading(false) trong .finally().
+   * Phiên được khôi phục đồng bộ từ localStorage nên không có trạng thái chờ:
+   * hồ sơ được làm mới ở nền (effect bên dưới) chứ không chặn render.
+   * Chặn ở đây là bắt mọi lần mở app chờ thêm một lượt gọi API trước khi thấy
+   * nội dung, trong khi phiên cũ đã đủ để vẽ giao diện; token chết thì apiClient
+   * xoá phiên và ProtectedRoute đưa về trang đăng nhập.
    */
   const [isLoading] = useState(false)
 
@@ -61,12 +65,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [toast],
   )
 
+  // Ghi phiên xuống localStorage mỗi khi user đổi (đăng nhập, sửa hồ sơ), để F5
+  // không mất. Chỉ ghi khi còn phiên: lúc đăng xuất key đã bị xoá, không ghi lại.
+  useEffect(() => {
+    if (user) storage.set(STORAGE_KEYS.user, user)
+  }, [user])
+
+  const applyProfile = useCallback((profile: UserProfile) => {
+    setUser((current) =>
+      current
+        ? {
+            ...current,
+            email: profile.email,
+            fullName: profile.fullName,
+            avatarUrl: profile.avatarUrl,
+          }
+        : current,
+    )
+  }, [])
+
+  /*
+   * Mở lại app với phiên cũ: hỏi backend hồ sơ mới nhất. Vừa xác nhận token còn
+   * dùng được, vừa lấy họ tên và ảnh mà luồng đăng nhập không trả về (người đăng
+   * nhập bằng form login chưa bao giờ có fullName trong máy).
+   * applyProfile ổn định nên effect chỉ chạy một lần lúc mở app.
+   */
+  useEffect(() => {
+    if (storage.get<string>(STORAGE_KEYS.accessToken) === null) return
+
+    let ignore = false
+    userService
+      .getMyProfile()
+      .then((profile) => {
+        if (!ignore) applyProfile(profile)
+      })
+      .catch(() => {
+        // 401 đã do apiClient lo (refresh, hoặc xoá phiên nếu refresh thất bại).
+        // Lỗi mạng thì giữ nguyên hồ sơ cũ trong máy, không đá người dùng ra.
+      })
+    return () => {
+      ignore = true
+    }
+  }, [applyProfile])
+
   const persist = useCallback((tokens: AuthTokens, profile: Pick<User, 'email' | 'fullName'>) => {
     // Dựng user trước khi ghi gì xuống storage: token hỏng thì không để lại phiên dở dang.
     const nextUser = toUser(tokens.accessToken, profile)
     storage.set(STORAGE_KEYS.accessToken, tokens.accessToken)
     storage.set(STORAGE_KEYS.refreshToken, tokens.refreshToken)
-    storage.set(STORAGE_KEYS.user, nextUser)
     setUser(nextUser)
   }, [])
 
@@ -105,8 +151,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       verifyRegistration,
       logout,
+      applyProfile,
     }),
-    [user, isLoading, login, verifyRegistration, logout],
+    [user, isLoading, login, verifyRegistration, logout, applyProfile],
   )
 
   return <AuthContext value={value}>{children}</AuthContext>
