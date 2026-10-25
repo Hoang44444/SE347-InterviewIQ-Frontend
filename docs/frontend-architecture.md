@@ -80,7 +80,9 @@ Missing CV metadata produces an error instead of falsely showing a saved summary
 The demo implements the same service method locally without a server request.
 
 Room loading still uses `/interviews/:id` and `/interviews/:id/questions`; backend
-read API alignment remains a separate dependency. Live server persistence has not
+read API alignment remains a separate dependency. The first of those URLs now belongs
+to the interview-history module and returns a different shape (see *Interview
+History* below), and the second has no backend endpoint. Live server persistence has not
 been validated by the demo or mocked browser checks.
 
 `useAnswerSubmission` requests signed parameters from
@@ -115,6 +117,49 @@ Run `npm test` for Vitest/jsdom/Testing Library checks of clock semantics, signe
 form/API contracts, upload validation, retries/retakes, sequential room behavior,
 submission eligibility/frozen payloads and polling cleanup. `npm run test:watch`
 is available locally. CI also runs lint, formatting, typecheck and build.
+
+## Interview History
+
+`GET /api/interviews` and `GET /api/interviews/:id` belong to the backend's
+interview-history module, not to the interview module. `interviewHistoryService`
+owns both; the list page lives at `/history` and the detail page at `/history/:id`.
+`interviewService.getById` and `getQuestions` still point at the same `/interviews`
+URLs with the older `Interview` shape and do not match the live backend — they
+remain only because the room depends on them, and `/interviews/:id/questions` has
+no backend endpoint at all.
+
+The list sends `pageNumber`, `pageSize`, and the optional `status`, `fromDate` and
+`toDate`. Empty filter values are dropped rather than sent: `?status=` fails the
+backend enum check with a 400, so clearing a filter would become an error. The two
+date inputs produce `yyyy-MM-dd` in the viewer's calendar, and the service converts
+them to the ISO instants of local start-of-day and end-of-day; passing the raw
+string would be read as UTC midnight and silently shift the range by the timezone
+offset. A reversed range is rejected in the service before any request, so the
+message appears beside the date field instead of as a page-level banner. Changing a
+filter resets to page 1, and each request carries a sequence number so a response
+from an earlier filter never overwrites a newer one.
+
+Ordering is fixed by the backend (`createdAt DESC`), filtering uses `createdAt`
+rather than completion time, and there is no keyword search or score-range filter,
+so the UI offers none. `pageSize` is a constant capped well under the backend's
+limit of 100.
+
+A session that is `CREATED` or `IN_PROGRESS` links to the room; every other status
+links to the detail page. `durationSeconds` and `overallScore` are nullable and
+render as a dash, never as `00:00` or `0,0`. A null `cv` means no CV or a deleted
+one (`onDelete: SetNull`) and says so. A 404 covers both "does not exist" and
+"belongs to someone else" by design, so the detail page shows one not-found screen
+without guessing which, and an id that is not a UUID reaches that screen without a
+request.
+
+The detail response reserves `score`, `summary` and `questions`, which the backend
+always returns as `null`/`[]` today. Until the scoring module fills them, the detail
+page reads `GET /api/scoring/sessions/:id/result` through `useSessionResult`, and
+only for a `COMPLETED` session whose `detail.score` is still null. That endpoint
+answers 400/403/404 when there is simply no result yet, so those statuses produce a
+status-specific notice rather than an error banner. For a session that is not yet
+completed, the retry control reloads the detail instead: what the viewer is waiting
+for is the status changing, not a result that cannot exist.
 
 ## Interview Camera and Per-question Recordings
 
