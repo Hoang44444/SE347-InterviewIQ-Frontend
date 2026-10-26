@@ -15,6 +15,9 @@ export const CV_MIME_TYPE = 'application/pdf'
 /** Upload file lâu hơn request thường nhiều, không dùng REQUEST_TIMEOUT 15 giây. */
 export const CV_UPLOAD_TIMEOUT = 120_000
 
+/** Phân tích CV chạy đồng bộ (tải PDF + gọi AI) nên có thể mất cả phút. */
+export const CV_PARSE_TIMEOUT = 90_000
+
 export const PARSE_STATUS_LABEL: Record<ParseStatus, string> = {
   PENDING: 'Chờ phân tích',
   PROCESSING: 'Đang phân tích',
