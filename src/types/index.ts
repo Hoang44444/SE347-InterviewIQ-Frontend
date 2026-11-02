@@ -1,5 +1,7 @@
 export type * from './api'
 export type * from './auth'
 export type * from './cv'
+export type * from './history'
 export type * from './interview'
+export type * from './scoring'
 export type * from './user'

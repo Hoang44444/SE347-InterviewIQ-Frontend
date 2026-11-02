@@ -1,10 +1,9 @@
 import { apiClient } from './apiClient'
 import { uploadInterviewVideo } from './interviewVideoUpload'
 
-import type { ApiSuccessResponse, PageResult, Paginated } from '@/types/api'
+import type { ApiSuccessResponse, PageResult } from '@/types/api'
 import type {
   Answer,
-  CreateInterviewPayload,
   CreateInterviewSessionPayload,
   CreateInterviewSessionResult,
   Interview,
@@ -45,18 +44,13 @@ export const interviewService = {
     return data.data
   },
 
-  async create(payload: CreateInterviewPayload): Promise<Interview> {
-    const { data } = await apiClient.post<ApiSuccessResponse<Interview>>('/interviews', payload)
-    return data.data
-  },
-
-  async list(page = 1, pageSize = 10): Promise<Paginated<Interview>> {
-    const { data } = await apiClient.get<ApiSuccessResponse<Paginated<Interview>>>('/interviews', {
-      params: { page, pageSize },
-    })
-    return data.data
-  },
-
+  /**
+   * CHƯA KHỚP BACKEND. `GET /interviews/:id` hiện thuộc module lịch sử và trả về
+   * shape khác (totalQuestions, status hoa, cv lồng trong object) — hợp đồng
+   * thật nằm ở `interviewHistoryService.getById`. Phòng phỏng vấn vẫn gọi hàm
+   * này nên tạm giữ lại; sửa cùng lúc với `getQuestions` bên dưới, vì
+   * `/interviews/:id/questions` thì backend không có endpoint nào cả.
+   */
   async getById(id: string): Promise<Interview> {
     const { data } = await apiClient.get<ApiSuccessResponse<Interview>>(`/interviews/${id}`)
     return data.data

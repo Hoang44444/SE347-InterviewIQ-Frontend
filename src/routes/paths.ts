@@ -7,6 +7,8 @@ export const ROUTES = {
   dashboard: '/dashboard',
   cvs: '/cvs',
   interviews: '/interviews',
+  history: '/history',
+  historyDetail: (id: string) => `/history/${id}`,
   interviewRoom: (id: string) => `/interviews/${id}`,
   devInterviewRoom: '/dev/interview-room',
   profile: '/profile',
