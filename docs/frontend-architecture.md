@@ -81,8 +81,8 @@ The demo implements the same service method locally without a server request.
 
 Room loading still uses `/interviews/:id` and `/interviews/:id/questions`; backend
 read API alignment remains a separate dependency. The first of those URLs now belongs
-to the interview-history module and returns a different shape (see *Interview
-History* below), and the second has no backend endpoint. Live server persistence has not
+to the interview-history module and returns a different shape (see _Interview
+History_ below), and the second has no backend endpoint. Live server persistence has not
 been validated by the demo or mocked browser checks.
 
 `useAnswerSubmission` requests signed parameters from
@@ -160,6 +160,14 @@ answers 400/403/404 when there is simply no result yet, so those statuses produc
 status-specific notice rather than an error banner. For a session that is not yet
 completed, the retry control reloads the detail instead: what the viewer is waiting
 for is the status changing, not a result that cannot exist.
+
+## Interview Question Generation
+
+A session in the `CREATED` status shows `CreatedSessionContent` in `InterviewSessionRoom`: three summary tiles, the job description saved at creation (read-only; it is sent only by `POST /interview-session` and never to the generate endpoint), the question panel and **Bắt đầu**. Other statuses keep the previous summary.
+
+`useSessionQuestions` loads `GET /interview-session/:id/questions` and calls `POST …/questions/generate` through `interviewService.generateQuestions`, which sends `{ count }` (3–10, default 5) only when a count is given and uses `GENERATE_QUESTIONS_TIMEOUT` (60 s) instead of the 15 s default, because the backend generates synchronously for up to about 45 seconds. A ref lock allows one generate request at a time, a load that started before a generate never overwrites its result, and a failed regeneration keeps the previous set because the backend replaces questions only on success. `describeGenerateError` separates 409 "CV has not been parsed yet" (links to the CV page) from 409 "can only be generated while the session is CREATED", plus 400, 404, 500 and network failures; 401 is left to `apiClient`.
+
+`QuestionGenerationPanel` is presentational: loading, empty, generating, list, load error and generate error states, a count `Select` and a confirmation `Modal` before regenerating, since that replaces the whole set. **Bắt đầu** stays disabled until at least one question exists and while generating. The room still resolves its CV only by `cvPublicId`; the file name is not available from the session list.
 
 ## Interview Camera and Per-question Recordings
 

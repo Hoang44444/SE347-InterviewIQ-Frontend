@@ -6,7 +6,9 @@ import { apiClient, setSessionExpiredHandler } from './apiClient'
 import { interviewService } from './interviewService'
 
 import { API_URL, STORAGE_KEYS } from '@/constants'
+import { GENERATE_QUESTIONS_TIMEOUT } from '@/constants/interview'
 import { answer, signedParams } from '@/test/interviewFixtures'
+import { generatedQuestions } from '@/test/sessionFixtures'
 import { storage } from '@/utils/storage'
 
 test('lists session pages and starts without a body using the authenticated client and envelope', async () => {
@@ -270,4 +272,34 @@ test('accepts the exact size limit and rejects failed or mismatched provider res
   ).toBe(signedParams.cloudinaryPublicId)
   await expect(interviewService.uploadAnswerVideo(signedParams, file)).rejects.toThrow()
   await expect(interviewService.uploadAnswerVideo(signedParams, file)).rejects.toThrow()
+})
+
+test('generates questions with a long timeout, sending a body only when count is given', async () => {
+  const requests: InternalAxiosRequestConfig[] = []
+  apiClient.defaults.adapter = async (config) => {
+    requests.push(config)
+    return {
+      data: { success: true, data: generatedQuestions },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+  const id = generatedQuestions.sessionPublicId
+  const url = `/interview-session/${id}/questions`
+
+  expect(await interviewService.generateQuestions(id)).toEqual(generatedQuestions)
+  await interviewService.generateQuestions(id, 8)
+  expect(await interviewService.getSessionQuestions(id)).toEqual(generatedQuestions)
+
+  expect(requests.map((request) => [request.method, request.url])).toEqual([
+    ['post', `${url}/generate`],
+    ['post', `${url}/generate`],
+    ['get', url],
+  ])
+  expect(requests[0].data).toBeUndefined()
+  expect(JSON.parse(requests[1].data)).toEqual({ count: 8 })
+  expect(requests[0].timeout).toBe(GENERATE_QUESTIONS_TIMEOUT)
+  expect(requests[2].timeout).not.toBe(GENERATE_QUESTIONS_TIMEOUT)
 })

@@ -1,5 +1,11 @@
 import type { BadgeProps } from '@/components/ui'
-import type { InterviewSessionStatus, InterviewStatus, QuestionKind } from '@/types/interview'
+import type {
+  InterviewSessionStatus,
+  InterviewStatus,
+  QuestionDifficulty,
+  QuestionDomain,
+  QuestionKind,
+} from '@/types/interview'
 
 export const SESSION_STATUS_LABEL: Record<InterviewSessionStatus, string> = {
   CREATED: 'Đã tạo',
@@ -59,3 +65,37 @@ export const KIND_OPTIONS = (Object.keys(KIND_LABEL) as QuestionKind[]).map((kin
   value: kind,
   label: KIND_LABEL[kind],
 }))
+
+export const QUESTION_COUNT_MIN = 3
+export const QUESTION_COUNT_MAX = 10
+export const QUESTION_COUNT_DEFAULT = 5
+
+/** Sinh câu hỏi chạy đồng bộ tới ~45 giây, dài hơn REQUEST_TIMEOUT 15 giây. */
+export const GENERATE_QUESTIONS_TIMEOUT = 60_000
+
+/** Thời gian chờ tối đa mà UI báo cho người dùng. */
+export const GENERATE_EXPECTED_SECONDS = 45
+
+export const DOMAIN_LABEL: Record<QuestionDomain, string> = {
+  TECHNICAL: 'Kỹ thuật',
+  BEHAVIORAL: 'Hành vi',
+  SITUATIONAL: 'Tình huống',
+}
+
+export const DOMAIN_TONE: Record<QuestionDomain, NonNullable<BadgeProps['tone']>> = {
+  TECHNICAL: 'info',
+  BEHAVIORAL: 'brand',
+  SITUATIONAL: 'neutral',
+}
+
+export const DIFFICULTY_LABEL: Record<QuestionDifficulty, string> = {
+  EASY: 'Dễ',
+  MEDIUM: 'Trung bình',
+  HARD: 'Khó',
+}
+
+export const DIFFICULTY_TONE: Record<QuestionDifficulty, NonNullable<BadgeProps['tone']>> = {
+  EASY: 'success',
+  MEDIUM: 'warning',
+  HARD: 'danger',
+}

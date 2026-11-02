@@ -9,7 +9,7 @@ import { InterviewRoomPage } from './InterviewRoomPage'
 import { STORAGE_KEYS } from '@/constants'
 import { ToastProvider } from '@/contexts/ToastProvider'
 import { apiClient } from '@/services/apiClient'
-import { session, sessionPage, startedSession } from '@/test/sessionFixtures'
+import { generatedQuestions, session, sessionPage, startedSession } from '@/test/sessionFixtures'
 import type { InterviewSession } from '@/types/interview'
 import { storage } from '@/utils/storage'
 
@@ -23,6 +23,13 @@ const cv = {
   parseStatus: 'COMPLETED',
   createdAt: '2026-10-13T08:00:00.000Z',
 }
+/** Nút Bắt đầu của phiên CREATED chỉ bật sau khi bộ câu hỏi đã tải xong. */
+async function findEnabledStart() {
+  const button = await screen.findByRole('button', { name: 'Bắt đầu' })
+  await waitFor(() => expect(button).toBeEnabled())
+  return button
+}
+
 const originalAdapter = apiClient.defaults.adapter
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
@@ -40,6 +47,15 @@ function setup({
   const requests: InternalAxiosRequestConfig[] = []
   let created: InterviewSession | null = null
   apiClient.defaults.adapter = async (config) => {
+    if (config.url?.endsWith('/questions') && config.method === 'get') {
+      return {
+        data: { success: true, data: generatedQuestions },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }
     requests.push(config)
     if (config.url === `/interview-session/${sessionId}/start` && created) {
       created = { ...created, ...startedSession }
@@ -90,7 +106,7 @@ test('create → opens API-confirmed room → starts and preserves server timest
   const requests = setup()
   await fillForm()
   submit()
-  fireEvent.click(await screen.findByRole('button', { name: 'Bắt đầu' }))
+  fireEvent.click(await findEnabledStart())
   await screen.findByText(/Bắt đầu lúc/)
   expect(screen.getByText('Đang diễn ra')).toBeInTheDocument()
   expect(screen.getByText(/Bắt đầu lúc/).querySelector('time')).toHaveAttribute(
@@ -137,7 +153,7 @@ test('loads owned CVs with bearer token, disables unavailable options, and submi
   expect(screen.getByRole('option', { name: 'backend-cv.pdf' })).toHaveValue(cvId)
   expect(within(screen.getByRole('dialog')).getAllByRole('textbox')).toHaveLength(2)
   submit()
-  expect(await screen.findByText('Đang chờ nội dung câu hỏi')).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Bộ câu hỏi phỏng vấn' })).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Phỏng vấn Backend Developer' })).toBeInTheDocument()
   const request = requests.find(
     ({ url, method }) => url === '/interview-session' && method === 'post',
@@ -165,7 +181,7 @@ test('omits optional blank JD from the request', async () => {
   const requests = setup()
   await fillForm('Buổi mới', '')
   submit()
-  await screen.findByText('Đang chờ nội dung câu hỏi')
+  await screen.findByRole('heading', { name: 'Bộ câu hỏi phỏng vấn' })
   expect(
     JSON.parse(
       requests.find(({ url, method }) => url === '/interview-session' && method === 'post')!.data,
@@ -212,7 +228,7 @@ test('locks submission and dismissal while creating, including duplicate submit 
   expect(screen.getByRole('button', { name: 'Huỷ' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Đóng' })).toBeDisabled()
   await act(async () => resolve({ publicId: sessionId }))
-  expect(await screen.findByText('Đang chờ nội dung câu hỏi')).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Bộ câu hỏi phỏng vấn' })).toBeInTheDocument()
 })
 
 test('shows backend validation beside each field and preserves input for retry', async () => {
@@ -277,7 +293,7 @@ test.each([
   submit()
   expect(await screen.findByText(message)).toBeInTheDocument()
   submit()
-  expect(await screen.findByText('Đang chờ nội dung câu hỏi')).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Bộ câu hỏi phỏng vấn' })).toBeInTheDocument()
 })
 
 test('keeps creation disabled during CV loading and retries a failed CV request', async () => {
@@ -298,6 +314,15 @@ test('keeps creation disabled during CV loading and retries a failed CV request'
 test('opens the newly created room URL in a fresh navigation without using legacy room APIs', async () => {
   const requests: InternalAxiosRequestConfig[] = []
   apiClient.defaults.adapter = async (config) => {
+    if (config.url?.endsWith('/questions') && config.method === 'get') {
+      return {
+        data: { success: true, data: generatedQuestions },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }
     requests.push(config)
     return {
       data: { success: true, data: sessionPage([session]) },
@@ -316,7 +341,7 @@ test('opens the newly created room URL in a fresh navigation without using legac
       </MemoryRouter>
     </ToastProvider>,
   )
-  expect(await screen.findByText('Đang chờ nội dung câu hỏi')).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Bộ câu hỏi phỏng vấn' })).toBeInTheDocument()
   expect(requests).toHaveLength(1)
   expect(requests[0].url).toBe('/interview-session')
 })

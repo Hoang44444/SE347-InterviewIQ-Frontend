@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { CreatedSessionContent } from '@/components/interview/CreatedSessionContent'
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner, Stack } from '@/components/ui'
 import { SESSION_STATUS_LABEL, SESSION_STATUS_TONE } from '@/constants/interview'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
@@ -121,60 +122,58 @@ export function InterviewSessionRoom({
         </div>
       ) : session ? (
         <Card padding="xl">
-          <Stack gap="lg">
-            <dl className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <dt className="text-sm text-content-subtle">Số câu hỏi</dt>
-                <dd className="mt-1 font-medium text-content">{session.totalQuestion} câu hỏi</dd>
-              </div>
-              <div>
-                <dt className="text-sm text-content-subtle">Ngày tạo</dt>
-                <dd className="mt-1 font-medium text-content">{formatDate(session.createdAt)}</dd>
-              </div>
-              <div>
-                <dt className="text-sm text-content-subtle">CV</dt>
-                <dd className="mt-1 wrap-anywhere text-content">
-                  {session.cvPublicId || 'Không có CV gắn với phiên'}
-                </dd>
-              </div>
-              {session.jobDescription && (
-                <div className="sm:col-span-2">
-                  <dt className="text-sm text-content-subtle">Mô tả công việc / JD</dt>
-                  <dd className="mt-1 wrap-anywhere whitespace-pre-wrap text-content">
-                    {session.jobDescription}
+          {session.status === 'CREATED' ? (
+            <CreatedSessionContent
+              session={session}
+              onStart={() => void start.start(session)}
+              isStarting={start.startingId === session.sessionPublicId}
+              startDisabled={isLoading || !!loadError || start.isLocked}
+            />
+          ) : (
+            <Stack gap="lg">
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <dt className="text-sm text-content-subtle">Số câu hỏi</dt>
+                  <dd className="mt-1 font-medium text-content">{session.totalQuestion} câu hỏi</dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-content-subtle">Ngày tạo</dt>
+                  <dd className="mt-1 font-medium text-content">{formatDate(session.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-content-subtle">CV</dt>
+                  <dd className="mt-1 wrap-anywhere text-content">
+                    {session.cvPublicId || 'Không có CV gắn với phiên'}
                   </dd>
                 </div>
+                {session.jobDescription && (
+                  <div className="sm:col-span-2">
+                    <dt className="text-sm text-content-subtle">Mô tả công việc / JD</dt>
+                    <dd className="mt-1 wrap-anywhere whitespace-pre-wrap text-content">
+                      {session.jobDescription}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              {session.startedAt && (
+                <p className="text-sm text-content-muted">
+                  Bắt đầu lúc{' '}
+                  <time dateTime={session.startedAt}>
+                    {new Intl.DateTimeFormat('vi-VN', {
+                      dateStyle: 'medium',
+                      timeStyle: 'medium',
+                    }).format(new Date(session.startedAt))}
+                  </time>
+                </p>
               )}
-            </dl>
-            {session.startedAt && (
-              <p className="text-sm text-content-muted">
-                Bắt đầu lúc{' '}
-                <time dateTime={session.startedAt}>
-                  {new Intl.DateTimeFormat('vi-VN', {
-                    dateStyle: 'medium',
-                    timeStyle: 'medium',
-                  }).format(new Date(session.startedAt))}
-                </time>
-              </p>
-            )}
-            <div>
-              <h2 className="text-xl font-semibold text-content">Đang chờ nội dung câu hỏi</h2>
-              <p className="mt-2 text-content-muted">
-                Nội dung câu hỏi chưa có sẵn trong phòng này.
-              </p>
-            </div>
-            {session.status === 'CREATED' && (
-              <Button
-                size="lg"
-                className="self-start"
-                onClick={() => void start.start(session)}
-                isLoading={start.startingId === session.sessionPublicId}
-                disabled={isLoading || !!loadError || start.isLocked}
-              >
-                Bắt đầu
-              </Button>
-            )}
-          </Stack>
+              <div>
+                <h2 className="text-xl font-semibold text-content">Đang chờ nội dung câu hỏi</h2>
+                <p className="mt-2 text-content-muted">
+                  Nội dung câu hỏi chưa có sẵn trong phòng này.
+                </p>
+              </div>
+            </Stack>
+          )}
         </Card>
       ) : !loadError ? (
         <EmptyState

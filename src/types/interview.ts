@@ -33,6 +33,25 @@ export interface Question {
   suggestedSeconds: number
 }
 
+export type QuestionDomain = 'TECHNICAL' | 'BEHAVIORAL' | 'SITUATIONAL'
+
+export type QuestionDifficulty = 'EASY' | 'MEDIUM' | 'HARD'
+
+/** Câu hỏi do AI sinh cho một phiên; khác `Question` của phòng phỏng vấn cũ. */
+export interface GeneratedQuestion {
+  publicId: string
+  orderIndex: number
+  /** Tối đa 500 ký tự. */
+  content: string
+  domain: QuestionDomain
+  difficulty: QuestionDifficulty
+}
+
+export interface SessionQuestions {
+  sessionPublicId: string
+  questions: GeneratedQuestion[]
+}
+
 export interface Interview {
   id: string
   title: string
