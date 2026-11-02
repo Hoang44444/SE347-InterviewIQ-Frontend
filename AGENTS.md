@@ -10,6 +10,7 @@ Application code lives in `src/`: route screens are in `pages/`, shared primitiv
 - `npm run dev`: start Vite with hot reload at `http://localhost:5173`.
 - `npm run build`: type-check and produce the production bundle in `dist/`.
 - `npm run preview`: serve the production bundle locally.
+- `npm test` / `npm run test:watch`: run the Vitest suite once or in watch mode.
 - `npm run lint` / `npm run lint:fix`: check or fix ESLint findings.
 - `npm run format:check` / `npm run format`: verify or apply Prettier formatting.
 - `npm run typecheck`: run TypeScript validation without emitting files.
@@ -24,7 +25,7 @@ Do not hardcode colors or arbitrary spacing. Add semantic tokens to `src/styles/
 
 ## Testing Guidelines
 
-No automated test runner or coverage threshold is configured. Run `npm run lint`, `npm run format:check`, `npm run typecheck`, and `npm run build`; these are the pull-request CI gates. Manually exercise affected routes, responsive states, authentication, and error/loading states. If adding tests, colocate them as `*.test.ts` or `*.test.tsx` and add a runner command to `package.json`.
+Tests run on Vitest with Testing Library and jsdom (`vitest.config.ts`); no coverage threshold is configured. Run `npm test` (or `npm run test:watch` while developing), `npm run lint`, `npm run format:check`, `npm run typecheck`, and `npm run build`; these are the pull-request CI gates. Colocate new tests next to the source as `*.test.ts` or `*.test.tsx`. Also manually exercise affected routes, responsive states, authentication, and error/loading states.
 
 ## Commit & Pull Request Guidelines
 
