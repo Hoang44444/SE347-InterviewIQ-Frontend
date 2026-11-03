@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { CvDetailPanel, CvDropzone, CvList, CvUploadProgress } from '@/components/cv'
 import { EmptyState, PageHeader, Spinner, Stack, Button } from '@/components/ui'
+import { useCvParse } from '@/hooks/useCvParse'
 import { useCvUpload } from '@/hooks/useCvUpload'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useToast } from '@/hooks/useToast'
 import { cvService } from '@/services/cvService'
 import type { ApiError } from '@/types/api'
-import type { Cv, CvSummary } from '@/types/cv'
+import type { Cv, CvParsedData, CvSummary } from '@/types/cv'
 
 export function CvPage() {
   useDocumentTitle('CV của tôi')
@@ -68,16 +69,48 @@ export function CvPage() {
     // retryCount chỉ để bấm "Thử lại" chạy lại effect khi lần trước lỗi.
   }, [selectedId, selectedDetail, retryCount])
 
+  const applyCv = useCallback((cv: Cv) => {
+    setCvs((previous) => previous.map((item) => (item.publicId === cv.publicId ? cv : item)))
+    setDetails((previous) => ({ ...previous, [cv.publicId]: cv }))
+  }, [])
+
+  const { parsingIds, parse } = useCvParse({ onChanged: applyCv })
+
   const handleUploaded = useCallback(
     (cv: Cv) => {
       setCvs((previous) => [cv, ...previous])
       setDetails((previous) => ({ ...previous, [cv.publicId]: cv }))
       setSelectedId(cv.publicId)
       toast.success('Đã tải CV lên', cv.fileName)
+      void parse(cv.publicId)
     },
-    [toast],
+    [toast, parse],
   )
   const upload = useCvUpload({ onUploaded: handleUploaded })
+
+  const saveParsedData = useCallback(
+    async (publicId: string, parsedData: CvParsedData) => {
+      const cv = await cvService.updateParsedData(publicId, parsedData)
+      applyCv(cv)
+      toast.success('Đã lưu chỉnh sửa', cv.fileName)
+    },
+    [applyCv, toast],
+  )
+
+  const refreshCv = useCallback(
+    (publicId: string) => {
+      cvService
+        .getById(publicId)
+        .then(applyCv)
+        .catch(() => {})
+    },
+    [applyCv],
+  )
+
+  const parsing = new Set(parsingIds)
+  const shownCvs = cvs.map((cv) =>
+    parsing.has(cv.publicId) ? { ...cv, parseStatus: 'PROCESSING' as const } : cv,
+  )
 
   const hasDetailError = detailError?.id === selectedId
   const isLoadingDetail = !!selectedId && !selectedDetail && !hasDetailError
@@ -127,17 +160,22 @@ export function CvPage() {
       ) : (
         <div className="flex flex-wrap items-start gap-6">
           <div className="min-w-0 flex-1 basis-[340px]">
-            <CvList cvs={cvs} selectedId={selectedId} onSelect={setSelectedId} />
+            <CvList cvs={shownCvs} selectedId={selectedId} onSelect={setSelectedId} />
           </div>
           <div className="min-w-0 flex-[1.7] basis-[440px]">
             <CvDetailPanel
+              key={selectedId}
               cv={selectedDetail ?? null}
               isLoading={isLoadingDetail}
               error={hasDetailError ? detailError.message : ''}
+              isParsing={!!selectedId && parsing.has(selectedId)}
               onRetry={() => {
                 setDetailError(null)
                 setRetryCount((count) => count + 1)
               }}
+              onParse={() => selectedId && void parse(selectedId)}
+              onRefresh={() => selectedId && refreshCv(selectedId)}
+              onSaveParsedData={(data) => saveParsedData(selectedId!, data)}
             />
           </div>
         </div>

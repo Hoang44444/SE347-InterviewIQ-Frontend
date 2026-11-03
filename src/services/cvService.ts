@@ -4,12 +4,20 @@ import { apiClient } from './apiClient'
 
 import {
   CV_MIME_TYPE,
+  CV_PARSE_TIMEOUT,
   CV_UPLOAD_TIMEOUT,
   MAX_CV_FILE_NAME_LENGTH,
   MAX_CV_SIZE_BYTES,
 } from '@/constants/cv'
 import type { ApiError, ApiSuccessResponse } from '@/types/api'
-import type { CreateCvPayload, Cv, CvSignedParams, CvSummary, CvUploadOptions } from '@/types/cv'
+import type {
+  CreateCvPayload,
+  Cv,
+  CvParsedData,
+  CvSignedParams,
+  CvSummary,
+  CvUploadOptions,
+} from '@/types/cv'
 
 /** Lỗi phát sinh ở FE (chưa gọi backend), cùng dạng ApiError để UI xử lý một kiểu. */
 function clientError(message: string): ApiError {
@@ -110,6 +118,28 @@ export const cvService = {
   async getById(publicId: string): Promise<Cv> {
     const { data } = await apiClient.get<ApiSuccessResponse<Cv>>(
       `/cvs/${encodeURIComponent(publicId)}`,
+    )
+    return data.data
+  },
+
+  /**
+   * Nhờ backend đọc PDF và điền parsedData. Phân tích hỏng vẫn trả 200 với parseStatus
+   * FAILED; 404 = không phải CV của mình, 409 = đã phân tích hoặc đang được phân tích.
+   */
+  async parse(publicId: string): Promise<Cv> {
+    const { data } = await apiClient.post<ApiSuccessResponse<Cv>>(
+      `/cvs/${encodeURIComponent(publicId)}/parse`,
+      undefined,
+      { timeout: CV_PARSE_TIMEOUT },
+    )
+    return data.data
+  },
+
+  /** Sửa tay kết quả phân tích: ghi đè cả object. Chỉ CV đã COMPLETED mới sửa được (409). */
+  async updateParsedData(publicId: string, parsedData: CvParsedData): Promise<Cv> {
+    const { data } = await apiClient.patch<ApiSuccessResponse<Cv>>(
+      `/cvs/${encodeURIComponent(publicId)}/parsed-data`,
+      parsedData,
     )
     return data.data
   },
