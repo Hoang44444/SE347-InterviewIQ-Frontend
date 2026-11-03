@@ -96,9 +96,9 @@ export function CreatedSessionContent({
             }
           />
         </div>
-        <div className="rounded-card border border-brand-100 bg-brand-50 p-4">
+        <div className="rounded-card border border-border bg-surface-muted px-4 py-3">
           <div className="flex items-center gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-surface text-brand-600 shadow-card">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-brand-50 text-brand-600">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -114,7 +114,7 @@ export function CreatedSessionContent({
                 <line x1="3" y1="13" x2="21" y2="13" />
               </svg>
             </span>
-            <p className="flex-1 text-xs font-semibold tracking-wide text-brand-700 uppercase">
+            <p className="flex-1 text-xs font-semibold tracking-wide text-content-subtle uppercase">
               Mô tả công việc (JD)
             </p>
             {isJdLong && (
@@ -141,7 +141,7 @@ export function CreatedSessionContent({
               {isJdLong && !isJdExpanded && (
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-linear-to-b from-transparent to-brand-50"
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-linear-to-b from-transparent to-surface-muted"
                 />
               )}
             </div>
