@@ -227,6 +227,18 @@ full local answer responses and QUEUED → PROCESSING → COMPLETED scoring. Cam
 controls use the real browser APIs. The demo banner clearly labels its temporary
 data and never sends video to Cloudinary/backend; authenticated interview routes continue to use `interviewService`.
 
+## Speech Transcript and Speaking Pace
+
+`useSpeechTranscript` wraps the Web Speech API (`SpeechRecognition`, or the `webkit` prefix in Chrome/Edge/Safari). It is standalone and not yet wired into `InterviewRoom`, so the room's transcript is still typed by hand. It does not call `getUserMedia` or read `useInterviewRecorder` state: the recognizer asks for the microphone itself, and the page normally already holds the permission from the camera step. Any failure is only a message and never blocks recording, typing or submitting.
+
+- **Contract**: `useSpeechTranscript({ lang = 'vi-VN', slowWpm = 90, fastWpm = 180, maxLength = 50000 })` returns `status` (`unsupported | idle | listening | error`), `isSupported`, `transcript` (final + interim, for display), `finalTranscript`, `interimTranscript`, `wordCount`, `currentWpm`, `averageWpm`, `pace` (`slow | good | fast | null`), `truncated`, `error` (`{ code, message }`, Vietnamese message) and `start`, `stop`, `reset`. Constants live in `src/constants/speech.ts`.
+- **Browsers**: Firefox has no `SpeechRecognition`, so `status` is `unsupported` from the first render and `start` does nothing.
+- **Transcript**: final segments are appended with one space between them; interim text is shown but only joins `finalTranscript` once confirmed. At `maxLength` (the 50,000-character limit of the answer PUT) the text is cut at the nearest word boundary, listening stops and `truncated` is `true`; `start` stays disabled until `reset`. `stop` uses `recognition.stop()` so the last final result still arrives.
+- **Continuous listening**: `continuous: true`. Chrome ends the session after silence or about a minute; while the user has not called `stop`, `onend` starts it again. Ends within one second of a start count as failures and, after three in a row, the hook reports `unstable`. `no-speech` and `aborted` are ignored. `not-allowed`, `audio-capture`, `network` and unknown errors stop the hook with `status: 'error'`.
+- **Pace**: words are counted by whitespace (`src/utils/speechRate.ts`). `currentWpm` covers the last 15 seconds (the elapsed time while the window is not full) and stays `null` until 8 seconds have been heard. `averageWpm` covers the whole answer. The clock counts listening time only, silence included, and is paused by `stop`. `pace` is `slow` below 90 and `fast` above 180 words per minute, which suits Vietnamese (about 120–160 when speaking naturally). Pace becomes `slow` again after a long silence.
+
+To wire it into the room: call the hook in `InterviewRoom`, `start()` when recording the current question begins and `stop()` when it ends (`reset()` when moving to the next question or on a retake); copy `transcript` into `drafts[currentQuestion.id]`, which stays editable; show `pace` next to `InterviewRecorder` with a `Badge`; and show `error.message` or an `unsupported` notice without disabling manual entry.
+
 ## Adding a Feature
 
 1. Define the domain types and constants.
