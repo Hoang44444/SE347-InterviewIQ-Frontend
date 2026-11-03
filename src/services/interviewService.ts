@@ -1,6 +1,7 @@
 import { apiClient } from './apiClient'
 import { uploadInterviewVideo } from './interviewVideoUpload'
 
+import { GENERATE_QUESTIONS_TIMEOUT } from '@/constants/interview'
 import type { ApiSuccessResponse, PageResult } from '@/types/api'
 import type {
   Answer,
@@ -12,6 +13,7 @@ import type {
   Question,
   InterviewRecordingSignedParams,
   SaveAnswerPayload,
+  SessionQuestions,
   ScoringJob,
   SubmitInterviewSessionResult,
   SubmitInterviewSessionPayload,
@@ -40,6 +42,27 @@ export const interviewService = {
     const { data } = await apiClient.post<ApiSuccessResponse<CreateInterviewSessionResult>>(
       '/interview-session',
       payload,
+    )
+    return data.data
+  },
+
+  /**
+   * Sinh bộ câu hỏi cho phiên CREATED; gọi lại sẽ thay toàn bộ bộ cũ.
+   * Backend chạy đồng bộ tới ~45 giây nên dùng timeout riêng. Không truyền
+   * `count` thì không gửi body và backend dùng mặc định 5.
+   */
+  async generateQuestions(sessionPublicId: string, count?: number): Promise<SessionQuestions> {
+    const { data } = await apiClient.post<ApiSuccessResponse<SessionQuestions>>(
+      `/interview-session/${sessionPublicId}/questions/generate`,
+      count === undefined ? undefined : { count },
+      { timeout: GENERATE_QUESTIONS_TIMEOUT },
+    )
+    return data.data
+  },
+
+  async getSessionQuestions(sessionPublicId: string): Promise<SessionQuestions> {
+    const { data } = await apiClient.get<ApiSuccessResponse<SessionQuestions>>(
+      `/interview-session/${sessionPublicId}/questions`,
     )
     return data.data
   },
