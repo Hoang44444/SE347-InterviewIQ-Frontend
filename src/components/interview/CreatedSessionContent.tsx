@@ -5,9 +5,12 @@ import { QuestionGenerationPanel } from './QuestionGenerationPanel'
 import { Button, Stack } from '@/components/ui'
 import { useSessionQuestions } from '@/hooks/useSessionQuestions'
 import type { InterviewSession } from '@/types/interview'
+import { cn } from '@/utils/cn'
 import { formatDate } from '@/utils/format'
 
+/** JD dài hơn ngưỡng này (ký tự hoặc dòng) thì thu gọn, mở dần bằng nút Xem đầy đủ. */
 const JD_PREVIEW_LIMIT = 140
+const JD_PREVIEW_LINES = 4
 
 function InfoTile({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
@@ -49,7 +52,7 @@ export function CreatedSessionContent({
   const questions = useSessionQuestions(session.sessionPublicId)
   const [isJdExpanded, setIsJdExpanded] = useState(false)
   const jd = session.jobDescription?.trim() ?? ''
-  const isJdLong = jd.length > JD_PREVIEW_LIMIT
+  const isJdLong = jd.length > JD_PREVIEW_LIMIT || jd.split('\n').length > JD_PREVIEW_LINES
   const hasQuestions = questions.questions.length > 0
 
   return (
@@ -93,14 +96,30 @@ export function CreatedSessionContent({
             }
           />
         </div>
-        <div className="rounded-card border border-border bg-surface px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold tracking-wide text-content-subtle uppercase">
+        <div className="rounded-card border border-border bg-surface-muted px-4 py-3">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-brand-50 text-brand-600">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+                className="size-5"
+              >
+                <rect x="3" y="7" width="18" height="13" rx="2" />
+                <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                <line x1="3" y1="13" x2="21" y2="13" />
+              </svg>
+            </span>
+            <p className="flex-1 text-xs font-semibold tracking-wide text-content-subtle uppercase">
               Mô tả công việc (JD)
             </p>
             {isJdLong && (
               <Button
-                variant="link"
+                variant="secondary"
                 size="sm"
                 aria-expanded={isJdExpanded}
                 onClick={() => setIsJdExpanded((previous) => !previous)}
@@ -110,17 +129,24 @@ export function CreatedSessionContent({
             )}
           </div>
           {jd ? (
-            <p
-              className={
-                isJdExpanded
-                  ? 'mt-1 text-sm whitespace-pre-wrap wrap-anywhere text-content-muted'
-                  : 'mt-1 line-clamp-2 text-sm wrap-anywhere text-content-muted'
-              }
-            >
-              {jd}
-            </p>
+            <div className="relative mt-3">
+              <p
+                className={cn(
+                  'text-sm leading-6 whitespace-pre-wrap wrap-anywhere text-content',
+                  !isJdExpanded && 'max-h-24 overflow-hidden',
+                )}
+              >
+                {jd}
+              </p>
+              {isJdLong && !isJdExpanded && (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-linear-to-b from-transparent to-surface-muted"
+                />
+              )}
+            </div>
           ) : (
-            <p className="mt-1 text-sm text-content-muted">
+            <p className="mt-3 text-sm text-content-muted">
               Phiên này không có JD. JD chỉ nhập được lúc tạo phòng.
             </p>
           )}
