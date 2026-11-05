@@ -22,6 +22,8 @@ interface InterviewRecorderProps {
   disabled?: boolean
   /** Nút hành động chính đặt cùng hàng với nút ghi (Nộp câu trả lời). */
   actions?: ReactNode
+  /** Khu vực dưới khung camera, ví dụ trạng thái giám sát. */
+  statusSlot?: ReactNode
   className?: string
 }
 
@@ -42,6 +44,7 @@ export function InterviewRecorder({
   questionNumber = 1,
   disabled = false,
   actions,
+  statusSlot,
   className,
 }: InterviewRecorderProps) {
   const [isRetakeOpen, setIsRetakeOpen] = useState(false)
@@ -123,6 +126,8 @@ export function InterviewRecorder({
         )}
         {stream && <MicLevelMeter stream={stream} className="absolute bottom-3 left-3" />}
       </CameraPreview>
+
+      {statusSlot}
 
       {isRequesting && (
         <p className="text-sm text-content-muted">

@@ -4,6 +4,7 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { AiMascot, type AiMascotMood } from '@/components/brand/AiMascot'
 import { InterviewSessionRoom } from '@/components/interview/InterviewSessionRoom'
 import {
+  IntegrityStatus,
   InterviewRecorder,
   QuestionPanel,
   QuestionProgress,
@@ -24,6 +25,7 @@ import { useAnswerSubmission } from '@/hooks/useAnswerSubmission'
 import { useSessionSubmission } from '@/hooks/useSessionSubmission'
 import { useScoringJob } from '@/hooks/useScoringJob'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { useIntegrityMonitor } from '@/hooks/useIntegrityMonitor'
 import { useInterviewRecorder } from '@/hooks/useInterviewRecorder'
 import { useToast } from '@/hooks/useToast'
 import { ROUTES } from '@/routes/paths'
@@ -42,6 +44,7 @@ const LOBBY_NOTES = [
   'Mỗi câu ghi một video. Nộp xong câu này mới mở câu tiếp theo.',
   'Đồng hồ chỉ bắt đầu chạy khi bạn bấm Bắt đầu phỏng vấn.',
   'Bản ghi chưa nộp sẽ mất nếu tải lại hoặc rời trang.',
+  'Trong lúc phỏng vấn, hệ thống ghi nhận rời tab, thoát toàn màn hình và phân tích hình camera ngay trên máy bạn (không có mặt, nhiều người, nhìn đi chỗ khác) để người xem xét. Hình không bị gửi đi để phân tích.',
 ]
 
 export function InterviewRoomPage() {
@@ -133,6 +136,11 @@ export function InterviewRoom({
 
   const currentQuestion = questions[currentIndex]
   const currentDraft = currentQuestion ? (drafts[currentQuestion.id] ?? '') : ''
+  const integrity = useIntegrityMonitor({
+    enabled: isStarted && !isFinished,
+    stream: recorder.stream,
+    questionId: currentQuestion?.id,
+  })
   const answeredIds = useMemo(() => new Set(Object.keys(savedAnswers)), [savedAnswers])
 
   const hasUnsaved = questions.some(
@@ -187,6 +195,8 @@ export function InterviewRoom({
     if (!currentQuestion || isStarted || actionRef.current || recorder.status !== 'ready') return
     clock.start(currentQuestion.id)
     setIsStarted(true)
+    // Toàn màn hình giúp phát hiện việc rời phòng; từ chối cũng không sao.
+    void document.documentElement.requestFullscreen?.().catch(() => {})
   }
 
   function handleDraftChange(value: string) {
@@ -624,6 +634,15 @@ export function InterviewRoom({
           questionNumber={currentIndex + 1}
           disabled={isBusy || isAnswered || answerSubmission.blocked}
           className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1"
+          statusSlot={
+            isStarted && !isFinished ? (
+              <IntegrityStatus
+                activeTypes={integrity.activeTypes}
+                eventCount={integrity.events.length}
+                detectorState={integrity.detectorState}
+              />
+            ) : undefined
+          }
           actions={
             isStarted ? (
               <Button
