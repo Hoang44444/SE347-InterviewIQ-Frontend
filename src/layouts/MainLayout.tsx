@@ -10,6 +10,7 @@ import { ROUTES } from '@/routes/paths'
 const NAV_ITEMS: NavItem[] = [
   { to: ROUTES.dashboard, label: 'Tổng quan' },
   { to: ROUTES.interviews, label: 'Phòng phỏng vấn' },
+  { to: ROUTES.history, label: 'Lịch sử' },
   { to: ROUTES.cvs, label: 'CV của tôi' },
   { to: ROUTES.profile, label: 'Hồ sơ' },
   { to: ROUTES.designSystem, label: 'Design system' },
@@ -21,9 +22,19 @@ export function MainLayout() {
   const { pathname } = useLocation()
   const navigateWithTransition = useViewTransitionNavigate()
   const toast = useToast()
+  const [isLogoutOpen, setIsLogoutOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-  async function handleLogout() {
-    await logout()
+  async function handleConfirmLogout() {
+    setIsLoggingOut(true)
+    try {
+      await logout()
+    } catch {
+      // Gọi API lỗi thì logout() vẫn đã xoá phiên ở máy này, nên vẫn coi như đã đăng xuất.
+    } finally {
+      setIsLoggingOut(false)
+      setIsLogoutOpen(false)
+    }
     toast.success('Đã đăng xuất')
     navigate(ROUTES.login)
   }
@@ -42,8 +53,21 @@ export function MainLayout() {
         actions={
           isAuthenticated ? (
             <>
-              <span className="hidden text-sm text-content-muted sm:inline">{user?.fullName}</span>
-              <Button variant="secondary" size="sm" onClick={handleLogout}>
+              {/* Bấm vào ảnh hoặc tên để vào trang hồ sơ, như thói quen ở các app khác. */}
+              <Link
+                to={ROUTES.profile}
+                className="flex items-center gap-2 rounded-control px-1 py-1 transition hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              >
+                <Avatar
+                  src={user?.avatarUrl}
+                  name={user?.fullName ?? user?.email ?? ''}
+                  size="sm"
+                />
+                <span className="hidden text-sm text-content-muted sm:inline">
+                  {user?.fullName ?? user?.email}
+                </span>
+              </Link>
+              <Button variant="secondary" size="sm" onClick={() => setIsLogoutOpen(true)}>
                 Đăng xuất
               </Button>
             </>
@@ -66,6 +90,30 @@ export function MainLayout() {
           &copy; {new Date().getFullYear()} {APP_NAME} &middot; Đồ án SE347
         </p>
       </footer>
+
+      {/* Hỏi lại trước khi đăng xuất. Không cho đóng hộp trong lúc đang gọi API. */}
+      <Modal
+        open={isLogoutOpen}
+        onClose={() => setIsLogoutOpen(false)}
+        title="Đăng xuất?"
+        description="Bạn sẽ cần đăng nhập lại để tiếp tục luyện phỏng vấn."
+        size="sm"
+        dismissible={!isLoggingOut}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setIsLogoutOpen(false)}
+              disabled={isLoggingOut}
+            >
+              Hủy
+            </Button>
+            <Button onClick={handleConfirmLogout} isLoading={isLoggingOut}>
+              Đăng xuất
+            </Button>
+          </>
+        }
+      />
     </div>
   )
 }

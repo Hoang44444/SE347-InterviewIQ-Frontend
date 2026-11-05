@@ -5,7 +5,6 @@ import { QUESTION_GENERATION_TIMEOUT } from '@/constants'
 import type { ApiSuccessResponse, PageResult, Paginated } from '@/types/api'
 import type {
   Answer,
-  CreateInterviewPayload,
   CreateInterviewSessionPayload,
   CreateInterviewSessionResult,
   Interview,
@@ -14,6 +13,7 @@ import type {
   Question,
   InterviewRecordingSignedParams,
   SaveAnswerPayload,
+  SessionQuestions,
   ScoringJob,
   SessionQuestions,
   GenerateQuestionsPayload,
@@ -81,18 +81,34 @@ export const interviewService = {
     return data.data
   },
 
-  async create(payload: CreateInterviewPayload): Promise<Interview> {
-    const { data } = await apiClient.post<ApiSuccessResponse<Interview>>('/interviews', payload)
+  /**
+   * Sinh bộ câu hỏi cho phiên CREATED; gọi lại sẽ thay toàn bộ bộ cũ.
+   * Backend chạy đồng bộ tới ~45 giây nên dùng timeout riêng. Không truyền
+   * `count` thì không gửi body và backend dùng mặc định 5.
+   */
+  async generateQuestions(sessionPublicId: string, count?: number): Promise<SessionQuestions> {
+    const { data } = await apiClient.post<ApiSuccessResponse<SessionQuestions>>(
+      `/interview-session/${sessionPublicId}/questions/generate`,
+      count === undefined ? undefined : { count },
+      { timeout: GENERATE_QUESTIONS_TIMEOUT },
+    )
     return data.data
   },
 
-  async list(page = 1, pageSize = 10): Promise<Paginated<Interview>> {
-    const { data } = await apiClient.get<ApiSuccessResponse<Paginated<Interview>>>('/interviews', {
-      params: { page, pageSize },
-    })
+  async getSessionQuestions(sessionPublicId: string): Promise<SessionQuestions> {
+    const { data } = await apiClient.get<ApiSuccessResponse<SessionQuestions>>(
+      `/interview-session/${sessionPublicId}/questions`,
+    )
     return data.data
   },
 
+  /**
+   * CHƯA KHỚP BACKEND. `GET /interviews/:id` hiện thuộc module lịch sử và trả về
+   * shape khác (totalQuestions, status hoa, cv lồng trong object) — hợp đồng
+   * thật nằm ở `interviewHistoryService.getById`. Phòng phỏng vấn vẫn gọi hàm
+   * này nên tạm giữ lại; sửa cùng lúc với `getQuestions` bên dưới, vì
+   * `/interviews/:id/questions` thì backend không có endpoint nào cả.
+   */
   async getById(id: string): Promise<Interview> {
     const { data } = await apiClient.get<ApiSuccessResponse<Interview>>(`/interviews/${id}`)
     return data.data

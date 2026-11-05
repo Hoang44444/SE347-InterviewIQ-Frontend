@@ -1,5 +1,5 @@
 import type { PageResult } from '@/types/api'
-import type { InterviewSession } from '@/types/interview'
+import type { InterviewSession, SessionQuestions } from '@/types/interview'
 
 export const session: InterviewSession = {
   sessionPublicId: '00000000-0000-4000-8000-000000000003',
@@ -31,4 +31,24 @@ export function sessionPage(
     hasPrevious: pageNumber > 1,
     hasNext: pageNumber < totalPages,
   }
+}
+
+export const generatedQuestions: SessionQuestions = {
+  sessionPublicId: session.sessionPublicId,
+  questions: [
+    {
+      publicId: '00000000-0000-4000-8000-0000000000a1',
+      orderIndex: 1,
+      content: 'Bạn thiết kế phân trang cho API danh sách như thế nào?',
+      domain: 'TECHNICAL',
+      difficulty: 'MEDIUM',
+    },
+    {
+      publicId: '00000000-0000-4000-8000-0000000000a2',
+      orderIndex: 2,
+      content: 'Kể về một lần bạn bất đồng với đồng đội.',
+      domain: 'BEHAVIORAL',
+      difficulty: 'EASY',
+    },
+  ],
 }

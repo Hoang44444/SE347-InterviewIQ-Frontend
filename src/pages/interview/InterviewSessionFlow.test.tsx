@@ -9,8 +9,15 @@ import { InterviewRoomPage } from './InterviewRoomPage'
 import { ToastProvider } from '@/contexts/ToastProvider'
 import { apiClient } from '@/services/apiClient'
 import { deferred } from '@/test/interviewFixtures'
-import { session, sessionPage, startedSession } from '@/test/sessionFixtures'
+import { generatedQuestions, session, sessionPage, startedSession } from '@/test/sessionFixtures'
 import type { InterviewSession, InterviewSessionStatus } from '@/types/interview'
+
+/** Nút Bắt đầu của phiên CREATED chỉ bật sau khi bộ câu hỏi đã tải xong. */
+async function findEnabledStart() {
+  const button = await screen.findByRole('button', { name: 'Bắt đầu' })
+  await waitFor(() => expect(button).toBeEnabled())
+  return button
+}
 
 const originalAdapter = apiClient.defaults.adapter
 afterEach(() => {
@@ -132,6 +139,7 @@ test.each(['list', 'room'])(
       place === 'list' ? '/interviews' : `/interviews/${session.sessionPublicId}`,
     )
     const buttons = await screen.findAllByRole('button', { name: 'Bắt đầu' })
+    await waitFor(() => expect(buttons[0]).toBeEnabled())
     fireEvent.click(buttons[0])
     fireEvent.click(buttons[0])
     await waitFor(() => expect(requests.filter((r) => r.method === 'post')).toHaveLength(1))
@@ -170,7 +178,7 @@ test.each([
       },
       place === 'list' ? '/interviews' : `/interviews/${session.sessionPublicId}`,
     )
-    fireEvent.click(await screen.findByRole('button', { name: 'Bắt đầu' }))
+    fireEvent.click(await findEnabledStart())
     const message =
       status === 409
         ? 'Phiên phỏng vấn đã bắt đầu hoặc không còn có thể bắt đầu'
@@ -199,7 +207,7 @@ test.each([400, 403, 500])(
           : startedSession
         : sessionPage([{ ...session, status: attempts > 1 ? 'IN_PROGRESS' : 'CREATED' }]),
     )
-    fireEvent.click(await screen.findByRole('button', { name: 'Bắt đầu' }))
+    fireEvent.click(await findEnabledStart())
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(
       status === 400
@@ -276,7 +284,7 @@ test('changing rooms while Start is pending does not navigate back or update the
     (config) => (config.method === 'post' ? pending.promise : sessionPage([session, next])),
     `/interviews/${session.sessionPublicId}`,
   )
-  fireEvent.click(await screen.findByRole('button', { name: 'Bắt đầu' }))
+  fireEvent.click(await findEnabledStart())
   fireEvent.click(screen.getByRole('link', { name: 'Đổi phòng' }))
   expect(await screen.findByRole('heading', { name: 'New room' })).toBeInTheDocument()
   await act(async () => pending.resolve(startedSession))

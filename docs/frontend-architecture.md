@@ -41,7 +41,7 @@ Add each new path to `src/routes/paths.ts` before declaring its `<Route>`. Do no
 
 ## Data and Authentication
 
-`apiClient.ts` configures the base URL, request timeout, bearer token, and error normalization into `ApiError`. A `401` response clears the local session and redirects to the login page. `AuthProvider` stores the current user and exposes `login`, `register`, and `logout` through `useAuth()`.
+`apiClient.ts` configures the base URL, request timeout, bearer token, and error normalization into `ApiError`. When a protected request returns `401`, it calls `POST /auth/refresh` once, stores the new token pair, and retries the request. Concurrent `401`s share one in-flight refresh (and a Web Lock across tabs), because the backend rotates the refresh token and rejects reuse of the old one. Only when the backend rejects the refresh token does the client clear the session and notify `AuthProvider`, which drops the user so `ProtectedRoute` redirects to the login page; network or `5xx` failures during refresh keep the session. Requests to `/auth/*` never trigger a refresh: a `401` from `/auth/login` means wrong credentials. `AuthProvider` stores the current user and exposes `login`, `verifyRegistration`, and `logout` through `useAuth()`.
 
 Backend envelope contracts live in `src/types/api.ts`; `src/shared/apiResponse.ts` re-exports these types. `ApiSuccessResponse<T>` contains `statusCode`, `success: true`, `data`, `message`, and `timestamp`. `ApiErrorResponse` contains `statusCode`, `success: false`, `code`, `message`, optional validation `errors`, `path`, and `timestamp`. `ApiResponse<T>` is the union of both envelopes. Domain services type successful requests as `ApiSuccessResponse<T>` and return the nested `data` payload.
 
@@ -80,7 +80,9 @@ Missing CV metadata produces an error instead of falsely showing a saved summary
 The demo implements the same service method locally without a server request.
 
 Room loading still uses `/interviews/:id` and `/interviews/:id/questions`; backend
-read API alignment remains a separate dependency. Live server persistence has not
+read API alignment remains a separate dependency. The first of those URLs now belongs
+to the interview-history module and returns a different shape (see _Interview
+History_ below), and the second has no backend endpoint. Live server persistence has not
 been validated by the demo or mocked browser checks.
 
 `useAnswerSubmission` requests signed parameters from
@@ -115,6 +117,57 @@ Run `npm test` for Vitest/jsdom/Testing Library checks of clock semantics, signe
 form/API contracts, upload validation, retries/retakes, sequential room behavior,
 submission eligibility/frozen payloads and polling cleanup. `npm run test:watch`
 is available locally. CI also runs lint, formatting, typecheck and build.
+
+## Interview History
+
+`GET /api/interviews` and `GET /api/interviews/:id` belong to the backend's
+interview-history module, not to the interview module. `interviewHistoryService`
+owns both; the list page lives at `/history` and the detail page at `/history/:id`.
+`interviewService.getById` and `getQuestions` still point at the same `/interviews`
+URLs with the older `Interview` shape and do not match the live backend — they
+remain only because the room depends on them, and `/interviews/:id/questions` has
+no backend endpoint at all.
+
+The list sends `pageNumber`, `pageSize`, and the optional `status`, `fromDate` and
+`toDate`. Empty filter values are dropped rather than sent: `?status=` fails the
+backend enum check with a 400, so clearing a filter would become an error. The two
+date inputs produce `yyyy-MM-dd` in the viewer's calendar, and the service converts
+them to the ISO instants of local start-of-day and end-of-day; passing the raw
+string would be read as UTC midnight and silently shift the range by the timezone
+offset. A reversed range is rejected in the service before any request, so the
+message appears beside the date field instead of as a page-level banner. Changing a
+filter resets to page 1, and each request carries a sequence number so a response
+from an earlier filter never overwrites a newer one.
+
+Ordering is fixed by the backend (`createdAt DESC`), filtering uses `createdAt`
+rather than completion time, and there is no keyword search or score-range filter,
+so the UI offers none. `pageSize` is a constant capped well under the backend's
+limit of 100.
+
+A session that is `CREATED` or `IN_PROGRESS` links to the room; every other status
+links to the detail page. `durationSeconds` and `overallScore` are nullable and
+render as a dash, never as `00:00` or `0,0`. A null `cv` means no CV or a deleted
+one (`onDelete: SetNull`) and says so. A 404 covers both "does not exist" and
+"belongs to someone else" by design, so the detail page shows one not-found screen
+without guessing which, and an id that is not a UUID reaches that screen without a
+request.
+
+The detail response reserves `score`, `summary` and `questions`, which the backend
+always returns as `null`/`[]` today. Until the scoring module fills them, the detail
+page reads `GET /api/scoring/sessions/:id/result` through `useSessionResult`, and
+only for a `COMPLETED` session whose `detail.score` is still null. That endpoint
+answers 400/403/404 when there is simply no result yet, so those statuses produce a
+status-specific notice rather than an error banner. For a session that is not yet
+completed, the retry control reloads the detail instead: what the viewer is waiting
+for is the status changing, not a result that cannot exist.
+
+## Interview Question Generation
+
+A session in the `CREATED` status shows `CreatedSessionContent` in `InterviewSessionRoom`: three summary tiles, the job description saved at creation (read-only; it is sent only by `POST /interview-session` and never to the generate endpoint), the question panel and **Bắt đầu**. Other statuses keep the previous summary.
+
+`useSessionQuestions` loads `GET /interview-session/:id/questions` and calls `POST …/questions/generate` through `interviewService.generateQuestions`, which sends `{ count }` (3–10, default 5) only when a count is given and uses `GENERATE_QUESTIONS_TIMEOUT` (60 s) instead of the 15 s default, because the backend generates synchronously for up to about 45 seconds. A ref lock allows one generate request at a time, a load that started before a generate never overwrites its result, and a failed regeneration keeps the previous set because the backend replaces questions only on success. `describeGenerateError` separates 409 "CV has not been parsed yet" (links to the CV page) from 409 "can only be generated while the session is CREATED", plus 400, 404, 500 and network failures; 401 is left to `apiClient`.
+
+`QuestionGenerationPanel` is presentational: loading, empty, generating, list, load error and generate error states, a count `Select` and a confirmation `Modal` before regenerating, since that replaces the whole set. **Bắt đầu** stays disabled until at least one question exists and while generating. The room still resolves its CV only by `cvPublicId`; the file name is not available from the session list.
 
 ## Interview Camera and Per-question Recordings
 
@@ -181,6 +234,18 @@ open `http://localhost:5173/dev/interview-room`. This public route is gated by
 full local answer responses and QUEUED → PROCESSING → COMPLETED scoring. Camera/recording
 controls use the real browser APIs. The demo banner clearly labels its temporary
 data and never sends video to Cloudinary/backend; authenticated interview routes continue to use `interviewService`.
+
+## Speech Transcript and Speaking Pace
+
+`useSpeechTranscript` wraps the Web Speech API (`SpeechRecognition`, or the `webkit` prefix in Chrome/Edge/Safari). It is standalone and not yet wired into `InterviewRoom`, so the room's transcript is still typed by hand. It does not call `getUserMedia` or read `useInterviewRecorder` state: the recognizer asks for the microphone itself, and the page normally already holds the permission from the camera step. Any failure is only a message and never blocks recording, typing or submitting.
+
+- **Contract**: `useSpeechTranscript({ lang = 'vi-VN', slowWpm = 90, fastWpm = 180, maxLength = 50000 })` returns `status` (`unsupported | idle | listening | error`), `isSupported`, `transcript` (final + interim, for display), `finalTranscript`, `interimTranscript`, `wordCount`, `currentWpm`, `averageWpm`, `pace` (`slow | good | fast | null`), `truncated`, `error` (`{ code, message }`, Vietnamese message) and `start`, `stop`, `reset`. Constants live in `src/constants/speech.ts`.
+- **Browsers**: Firefox has no `SpeechRecognition`, so `status` is `unsupported` from the first render and `start` does nothing.
+- **Transcript**: final segments are appended with one space between them; interim text is shown but only joins `finalTranscript` once confirmed. At `maxLength` (the 50,000-character limit of the answer PUT) the text is cut at the nearest word boundary, listening stops and `truncated` is `true`; `start` stays disabled until `reset`. `stop` uses `recognition.stop()` so the last final result still arrives.
+- **Continuous listening**: `continuous: true`. Chrome ends the session after silence or about a minute; while the user has not called `stop`, `onend` starts it again. Ends within one second of a start count as failures and, after three in a row, the hook reports `unstable`. `no-speech` and `aborted` are ignored. `not-allowed`, `audio-capture`, `network` and unknown errors stop the hook with `status: 'error'`.
+- **Pace**: words are counted by whitespace (`src/utils/speechRate.ts`). `currentWpm` covers the last 15 seconds (the elapsed time while the window is not full) and stays `null` until 8 seconds have been heard. `averageWpm` covers the whole answer. The clock counts listening time only, silence included, and is paused by `stop`. `pace` is `slow` below 90 and `fast` above 180 words per minute, which suits Vietnamese (about 120–160 when speaking naturally). Pace becomes `slow` again after a long silence.
+
+To wire it into the room: call the hook in `InterviewRoom`, `start()` when recording the current question begins and `stop()` when it ends (`reset()` when moving to the next question or on a retake); copy `transcript` into `drafts[currentQuestion.id]`, which stays editable; show `pace` next to `InterviewRecorder` with a `Badge`; and show `error.message` or an `unsupported` notice without disabling manual entry.
 
 ## Adding a Feature
 

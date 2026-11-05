@@ -9,7 +9,7 @@ import { InterviewRoomPage } from './InterviewRoomPage'
 import { STORAGE_KEYS } from '@/constants'
 import { ToastProvider } from '@/contexts/ToastProvider'
 import { apiClient } from '@/services/apiClient'
-import { session, sessionPage, startedSession } from '@/test/sessionFixtures'
+import { generatedQuestions, session, sessionPage, startedSession } from '@/test/sessionFixtures'
 import type { InterviewSession } from '@/types/interview'
 import { storage } from '@/utils/storage'
 
@@ -23,6 +23,13 @@ const cv = {
   parseStatus: 'COMPLETED',
   createdAt: '2026-10-13T08:00:00.000Z',
 }
+/** Nút Bắt đầu của phiên CREATED chỉ bật sau khi bộ câu hỏi đã tải xong. */
+async function findEnabledStart() {
+  const button = await screen.findByRole('button', { name: 'Bắt đầu' })
+  await waitFor(() => expect(button).toBeEnabled())
+  return button
+}
+
 const originalAdapter = apiClient.defaults.adapter
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
@@ -95,7 +102,7 @@ test('create → opens API-confirmed room → starts and preserves server timest
   const requests = setup()
   await fillForm()
   submit()
-  fireEvent.click(await screen.findByRole('button', { name: 'Bắt đầu' }))
+  fireEvent.click(await findEnabledStart())
   await screen.findByText(/Bắt đầu lúc/)
   expect(screen.getByText('Đang diễn ra')).toBeInTheDocument()
   expect(screen.getByText(/Bắt đầu lúc/).querySelector('time')).toHaveAttribute(
@@ -303,6 +310,15 @@ test('keeps creation disabled during CV loading and retries a failed CV request'
 test('opens the newly created room URL in a fresh navigation without using legacy room APIs', async () => {
   const requests: InternalAxiosRequestConfig[] = []
   apiClient.defaults.adapter = async (config) => {
+    if (config.url?.endsWith('/questions') && config.method === 'get') {
+      return {
+        data: { success: true, data: generatedQuestions },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }
     requests.push(config)
     return {
       data: { success: true, data: sessionPage([session]) },
