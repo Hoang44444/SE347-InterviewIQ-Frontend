@@ -41,7 +41,7 @@ export const FACE_THRESHOLDS = {
   /** Ms điều kiện phải liên tục hết trước khi coi là kết thúc. */
   recoverMs: 1000,
   maxYawDeg: 35,
-  maxPitchDeg: 30,
+  maxPitchDeg: 40,
 } as const
 
 /** Chu kỳ lấy mẫu khuôn mặt (ms). 2 lần/giây là đủ và nhẹ máy. */

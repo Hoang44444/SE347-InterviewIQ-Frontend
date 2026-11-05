@@ -21,7 +21,7 @@ test('classifies no face, multiple faces and head turned beyond thresholds', () 
   expect(classifyFace(noFace(0))).toEqual(['NO_FACE'])
   expect(classifyFace({ ...frontal(0), faceCount: 2 })).toEqual(['MULTIPLE_FACES'])
   expect(classifyFace({ ...frontal(0), yawDeg: -40 })).toEqual(['LOOKING_AWAY'])
-  expect(classifyFace({ ...frontal(0), pitchDeg: 35 })).toEqual(['LOOKING_AWAY'])
+  expect(classifyFace({ ...frontal(0), pitchDeg: 45 })).toEqual(['LOOKING_AWAY'])
   expect(classifyFace({ ...frontal(0), yawDeg: 20, pitchDeg: 20 })).toEqual([])
 })
 
