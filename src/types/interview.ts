@@ -37,7 +37,7 @@ export type QuestionDomain = 'TECHNICAL' | 'BEHAVIORAL' | 'SITUATIONAL'
 
 export type QuestionDifficulty = 'EASY' | 'MEDIUM' | 'HARD'
 
-/** Câu hỏi do backend sinh cho một phiên (SessionQuestionsResponseDto). */
+/** Câu hỏi do AI sinh cho một phiên; khác `Question` của phòng phỏng vấn cũ. */
 export interface GeneratedQuestion {
   publicId: string
   orderIndex: number
@@ -49,13 +49,7 @@ export interface GeneratedQuestion {
 
 export interface SessionQuestions {
   sessionPublicId: string
-  /** Đã sắp xếp theo orderIndex tăng dần; có thể rỗng nếu chưa sinh. */
   questions: GeneratedQuestion[]
-}
-
-export interface GenerateQuestionsPayload {
-  /** Số nguyên 3–10, mặc định 5 ở backend. */
-  count?: number
 }
 
 export interface Interview {

@@ -12,6 +12,3 @@ export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/ap
 
 /** Thời gian chờ tối đa cho một request (ms). */
 export const REQUEST_TIMEOUT = 15_000
-
-/** Sinh câu hỏi gọi LLM, backend timeout 45 giây nên client phải chờ lâu hơn. */
-export const QUESTION_GENERATION_TIMEOUT = 60_000

@@ -1,6 +1,15 @@
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
-import { Button, Container, Navbar, StudioBackdrop, type NavItem } from '@/components/ui'
+import {
+  Avatar,
+  Button,
+  Container,
+  Modal,
+  Navbar,
+  StudioBackdrop,
+  type NavItem,
+} from '@/components/ui'
 import { APP_NAME } from '@/constants'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'

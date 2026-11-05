@@ -1,7 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Input, Stack, TransitionLink } from '@/components/ui'
-import { useAuth } from '@/hooks/useAuth'
 import { RegisterSteps } from '@/components/auth'
 import {
   EMAIL_PATTERN,

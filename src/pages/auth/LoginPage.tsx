@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { Button, Input, Stack, TransitionLink } from '@/components/ui'
+import { EMAIL_PATTERN, PASSWORD_MAX_LENGTH } from '@/constants/auth'
 import { useAuth } from '@/hooks/useAuth'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useToast } from '@/hooks/useToast'

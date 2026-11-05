@@ -274,37 +274,32 @@ test('accepts the exact size limit and rejects failed or mismatched provider res
   await expect(interviewService.uploadAnswerVideo(signedParams, file)).rejects.toThrow()
 })
 
-test('reads and generates session questions with per-request timeout and sorted result', async () => {
+test('generates questions with a long timeout, sending a body only when count is given', async () => {
   const requests: InternalAxiosRequestConfig[] = []
-  const unsorted = {
-    sessionPublicId: 'session',
-    questions: [
-      { publicId: 'q2', orderIndex: 1, content: 'B', domain: 'BEHAVIORAL', difficulty: 'EASY' },
-      { publicId: 'q1', orderIndex: 0, content: 'A', domain: 'TECHNICAL', difficulty: 'HARD' },
-    ],
-  }
   apiClient.defaults.adapter = async (config) => {
     requests.push(config)
     return {
-      data: { success: true, data: unsorted },
+      data: { success: true, data: generatedQuestions },
       status: 200,
       statusText: 'OK',
       headers: {},
       config,
     }
   }
-  const read = await interviewService.getSessionQuestions('session')
-  const generated = await interviewService.generateSessionQuestions('session')
-  await interviewService.generateSessionQuestions('session', { count: 8 })
-  expect(read.questions.map((q) => q.publicId)).toEqual(['q1', 'q2'])
-  expect(generated.questions.map((q) => q.orderIndex)).toEqual([0, 1])
-  expect(requests.map(({ method, url }) => [method, url])).toEqual([
-    ['get', '/interview-session/session/questions'],
-    ['post', '/interview-session/session/questions/generate'],
-    ['post', '/interview-session/session/questions/generate'],
+  const id = generatedQuestions.sessionPublicId
+  const url = `/interview-session/${id}/questions`
+
+  expect(await interviewService.generateQuestions(id)).toEqual(generatedQuestions)
+  await interviewService.generateQuestions(id, 8)
+  expect(await interviewService.getSessionQuestions(id)).toEqual(generatedQuestions)
+
+  expect(requests.map((request) => [request.method, request.url])).toEqual([
+    ['post', `${url}/generate`],
+    ['post', `${url}/generate`],
+    ['get', url],
   ])
-  expect(JSON.parse(requests[1].data)).toEqual({})
-  expect(JSON.parse(requests[2].data)).toEqual({ count: 8 })
-  expect(requests[0].timeout).toBe(15_000)
-  expect(requests[1].timeout).toBe(60_000)
+  expect(requests[0].data).toBeUndefined()
+  expect(JSON.parse(requests[1].data)).toEqual({ count: 8 })
+  expect(requests[0].timeout).toBe(GENERATE_QUESTIONS_TIMEOUT)
+  expect(requests[2].timeout).not.toBe(GENERATE_QUESTIONS_TIMEOUT)
 })

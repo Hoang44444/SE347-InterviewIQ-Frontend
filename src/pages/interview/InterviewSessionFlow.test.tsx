@@ -35,10 +35,15 @@ function setup(
 ) {
   const requests: InternalAxiosRequestConfig[] = []
   apiClient.defaults.adapter = async (config) => {
-    if (config.url?.endsWith('/questions')) {
-      // Câu hỏi của phiên không thuộc phạm vi các test này: trả rỗng, không tính vào requests.
-      const data = { sessionPublicId: 'session', questions: [] }
-      return { data: { success: true, data }, status: 200, statusText: 'OK', headers: {}, config }
+    // Bộ câu hỏi của phiên CREATED được tải riêng, không tính vào các request đang kiểm tra.
+    if (config.url?.endsWith('/questions') && config.method === 'get') {
+      return {
+        data: { success: true, data: generatedQuestions },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
     }
     requests.push(config)
     const data = await respond(config)
@@ -153,7 +158,7 @@ test.each(['list', 'room'])(
     expect(JSON.parse(screen.getByTestId('navigation-state').textContent!).session).toMatchObject(
       startedSession,
     )
-    expect(screen.getByText('Câu hỏi phỏng vấn')).toBeInTheDocument()
+    expect(screen.getByText('Đang chờ nội dung câu hỏi')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Bắt đầu' })).not.toBeInTheDocument()
     expect(requests.every((r) => r.url?.startsWith('/interview-session'))).toBe(true)
   },
