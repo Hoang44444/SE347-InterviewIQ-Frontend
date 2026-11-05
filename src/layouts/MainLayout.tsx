@@ -1,10 +1,19 @@
 import { useState } from 'react'
-import { Link, Outlet, useNavigate } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
-import { Avatar, Button, Container, Modal, Navbar, type NavItem } from '@/components/ui'
+import {
+  Avatar,
+  Button,
+  Container,
+  Modal,
+  Navbar,
+  StudioBackdrop,
+  type NavItem,
+} from '@/components/ui'
 import { APP_NAME } from '@/constants'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
+import { useViewTransitionNavigate } from '@/hooks/useViewTransitionNavigate'
 import { ROUTES } from '@/routes/paths'
 
 const NAV_ITEMS: NavItem[] = [
@@ -19,6 +28,8 @@ const NAV_ITEMS: NavItem[] = [
 export function MainLayout() {
   const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const navigateWithTransition = useViewTransitionNavigate()
   const toast = useToast()
   const [isLogoutOpen, setIsLogoutOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -39,6 +50,11 @@ export function MainLayout() {
 
   return (
     <div className="flex min-h-screen flex-col">
+      {/*
+       * Nền studio đặt ở layout để không gắn lại khi chuyển trang. Trang chủ được
+       * đủ đèn và chuyển động; các trang làm việc chỉ giữ quầng đèn tĩnh cho dịu mắt.
+       */}
+      <StudioBackdrop light={pathname === ROUTES.home ? 'stage' : 'quiet'} />
       <Navbar
         brand={APP_NAME}
         brandTo={ROUTES.home}
@@ -65,7 +81,7 @@ export function MainLayout() {
               </Button>
             </>
           ) : (
-            <Button size="sm" onClick={() => navigate(ROUTES.login)}>
+            <Button size="sm" onClick={() => navigateWithTransition(ROUTES.login)}>
               Đăng nhập
             </Button>
           )

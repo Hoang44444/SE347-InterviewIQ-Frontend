@@ -49,8 +49,122 @@
     overflow: visible;
   }
 
-  /* Nền mờ phía sau modal. */
+  /*
+   * Nền mờ phía sau modal hiện dần khi mở, tắt nhanh hơn khi đóng.
+   * allow-discrete giữ ::backdrop ở top layer cho tới khi chạy xong hiệu ứng đóng;
+   * trình duyệt chưa hỗ trợ thì đóng ngay như cũ.
+   */
   dialog::backdrop {
-    background: oklch(0.208 0.042 266 / 0.45);
+    background-color: oklch(0.208 0.042 266 / 0);
+    transition:
+      background-color 150ms var(--ease-in-quick),
+      display 150ms allow-discrete,
+      overlay 150ms allow-discrete;
   }
+
+  dialog[open]::backdrop {
+    background-color: oklch(0.208 0.042 266 / 0.45);
+    transition-duration: 220ms;
+    transition-timing-function: var(--ease-out-soft);
+  }
+
+  @starting-style {
+    dialog[open]::backdrop {
+      background-color: oklch(0.208 0.042 266 / 0);
+    }
+  }
+
+  /*
+   * Chuyển trang giữa các trang public: trang cũ mờ đi nhanh, trang mới hiện lên
+   * chậm hơn một chút, đèn studio đứng yên (view-transition-name riêng).
+   */
+  ::view-transition-old(root) {
+    animation-duration: 150ms;
+    animation-timing-function: var(--ease-in-quick);
+  }
+
+  ::view-transition-new(root) {
+    animation-duration: 250ms;
+    animation-timing-function: var(--ease-out-soft);
+  }
+
+  /*
+   * Người dùng bật "giảm chuyển động" trong hệ điều hành: bỏ hết animation,
+   * kể cả toast/modal/spinner. Animation dùng fill-mode both nên vẫn dừng
+   * đúng ở trạng thái cuối, nền tĩnh vẫn hiện.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+      animation: none !important;
+    }
+  }
+}
+
+/*
+ * Ánh đèn studio. Viết thành utility để component chỉ cần gọi tên class,
+ * không phải nhét gradient arbitrary vào TSX.
+ */
+@utility bg-studio-light {
+  background-image:
+    radial-gradient(
+      ellipse min(84rem, 170vw) 46rem at 50% 0%,
+      var(--color-light-key),
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse min(44rem, 120vw) 30rem at 100% 100%,
+      var(--color-light-fill),
+      transparent 70%
+    );
+}
+
+@utility bg-studio-dim {
+  background-image: radial-gradient(
+    ellipse min(48rem, 160vw) 28rem at 50% -6rem,
+    var(--color-light-dim),
+    transparent 70%
+  );
+}
+
+/*
+ * Một luồng đèn rọi: hình nón toả xuống từ đỉnh, mép mềm nhờ chính dải góc
+ * của conic-gradient, mờ dần về phía dưới bằng mask. Độ mở đặt qua --beam-spread.
+ */
+@utility bg-studio-beam {
+  background-image: conic-gradient(
+    from calc(180deg - var(--beam-spread, 10deg)) at 50% 0%,
+    transparent 0deg,
+    var(--color-light-beam) var(--beam-spread, 10deg),
+    transparent calc(var(--beam-spread, 10deg) * 2)
+  );
+  mask-image: linear-gradient(to bottom, black, transparent 80%);
+}
+
+@utility bg-studio-vignette {
+  background-image: radial-gradient(
+    ellipse 120% 100% at 50% 30%,
+    transparent 55%,
+    var(--color-light-vignette)
+  );
+}
+
+@utility bg-grain {
+  background-image: var(--texture-grain);
+  mix-blend-mode: multiply;
+  opacity: 0.05;
+}
+
+@utility stagger-* {
+  animation-delay: calc(--value(integer) * var(--stagger-step));
 }

@@ -65,6 +65,21 @@
   --color-content-muted: oklch(0.446 0.043 257);
   --color-content-subtle: oklch(0.554 0.046 257);
 
+  /* ---------- ÁNH ĐÈN STUDIO (nền trang public) ---------- */
+  /*
+   * Nền Home, Login/Register, 404 mô phỏng phòng thu trước giờ lên hình.
+   * key = đèn chính chiếu từ trên xuống, fill = ánh phụ lạnh ở góc dưới,
+   * dim = đèn yếu cho trang 404. Dùng qua utility bg-studio-light / bg-studio-dim.
+   */
+  --color-light-key: oklch(0.79 0.11 259 / 0.62);
+  --color-light-fill: oklch(0.885 0.07 215 / 0.45);
+  --color-light-dim: oklch(0.869 0.022 253 / 0.4);
+  /* Luồng sáng và bụi sáng: gần trắng, chỉ thấy rõ khi nằm trên quầng đèn xanh. */
+  --color-light-beam: oklch(0.995 0.01 259 / 0.85);
+  --color-light-mote: oklch(0.995 0.008 259);
+  /* Viền tối rất nhẹ ở mép màn hình cho nền có chiều sâu. */
+  --color-light-vignette: oklch(0.208 0.042 266 / 0.07);
+
   /* ---------- BO GÓC ---------- */
   --radius-control: 0.5rem; /* nút, ô nhập liệu */
   --radius-card: 0.75rem; /* thẻ, panel */
@@ -81,9 +96,49 @@
   --container-text: 42rem; /* max-w-text cho đoạn văn bản dài */
 
   /* ---------- CHUYỂN ĐỘNG ---------- */
+  /*
+   * Một nhịp chung cho cả app:
+   *  - Đường cong: ease-out-soft (giảm tốc) cho thứ đi vào, ease-in-quick (tăng tốc)
+   *    cho thứ rời đi, ease-spring (có độ nảy) cho phản hồi vui như nhân vật AI,
+   *    linear cho tiến trình chạy đều như đồng hồ.
+   *  - Thời lượng: 150ms phản hồi hover/nhấn, khoảng 200ms mở modal/toast, đóng nhanh
+   *    hơn mở (khoảng 60–70%), 600ms cho lần xuất hiện được dàn dựng.
+   *  - Chỉ animate transform/opacity (và màu), không animate width/height/top/left.
+   * Hai biến --default-transition-* là mặc định của mọi class `transition`.
+   */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
-  --animate-toast-in: toast-in 0.2s var(--ease-out-soft);
-  --animate-modal-in: modal-in 0.18s var(--ease-out-soft);
+  --ease-in-quick: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --default-transition-duration: 150ms;
+  --default-transition-timing-function: var(--ease-out-soft);
+
+  /* Toast vào chậm hơn ra: thấy rõ cái mới, cái cũ đi gọn. */
+  --animate-toast-in: toast-in 0.22s var(--ease-out-soft) both;
+  --animate-toast-out: toast-out 0.15s var(--ease-in-quick) both;
+  /* Menu dọc trên điện thoại thả xuống. */
+  --animate-menu-in: menu-in 0.18s var(--ease-out-soft) both;
+  /* Nội dung nổi lên. Ghép với stagger-1, stagger-2... để xếp lượt. */
+  --animate-rise-in: rise-in 0.6s var(--ease-out-soft) both;
+  /* Đèn studio bật sáng dần, chỉ chạy một lần mỗi lượt truy cập. */
+  --animate-lights-on: lights-on 1.2s var(--ease-out-soft) both;
+  /* Đèn chập chờn rồi đứng ở mức yếu, dùng cho trang 404. */
+  --animate-flicker: flicker 0.9s linear both;
+  /*
+   * Nền studio chuyển động rất chậm (vài chục giây một nhịp) để có sức sống
+   * mà không kéo mắt khỏi nội dung. Mỗi luồng sáng tự đặt thời lượng riêng.
+   */
+  --animate-key-breathe: key-breathe 24s ease-in-out infinite alternate;
+  --animate-beam-sway: beam-sway 28s ease-in-out infinite alternate;
+  /* Hiệu ứng khi rê chuột ở trang chủ: thanh điểm, đường tiến bộ. */
+  --animate-grow-x: grow-x 0.7s var(--ease-out-soft) both;
+  --animate-draw: draw 0.9s var(--ease-out-soft) both;
+  /*
+   * Nhân vật AI. Chuyển động lặp chỉ giữ những gì có nghĩa và đủ nhẹ để không
+   * kéo mắt khi đang trả lời: chớp mắt thưa, gật gù khi đang nghe, vẫy tay khi chào.
+   */
+  --animate-blink: blink 4.8s ease-in-out infinite;
+  --animate-nod: nod 2.4s ease-in-out infinite;
+  --animate-wave-hand: wave-hand 0.45s ease-in-out 0.25s infinite alternate;
 
   @keyframes toast-in {
     from {
@@ -96,14 +151,137 @@
     }
   }
 
-  @keyframes modal-in {
+  @keyframes toast-out {
+    to {
+      opacity: 0;
+      transform: translateX(1rem) scale(0.97);
+    }
+  }
+
+  @keyframes menu-in {
     from {
       opacity: 0;
-      transform: translateY(0.75rem) scale(0.98);
+      transform: translateY(-0.25rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes lights-on {
+    from {
+      opacity: 0;
+      transform: translateY(-2rem) scale(0.92);
     }
     to {
       opacity: 1;
       transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes flicker {
+    0% {
+      opacity: 0;
+    }
+    8% {
+      opacity: 0.9;
+    }
+    12% {
+      opacity: 0.1;
+    }
+    30% {
+      opacity: 1;
+    }
+    34% {
+      opacity: 0.2;
+    }
+    40% {
+      opacity: 0.8;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes key-breathe {
+    from {
+      transform: translateX(-1.5%) scale(1);
+    }
+    to {
+      transform: translateX(1.5%) scale(1.06);
+    }
+  }
+
+  /* Lắc quanh góc riêng của từng luồng (--beam-angle), sáng tối như qua làn sương. */
+  @keyframes beam-sway {
+    from {
+      transform: rotate(calc(var(--beam-angle) - 4deg));
+      opacity: 0.7;
+    }
+    to {
+      transform: rotate(calc(var(--beam-angle) + 4deg));
+      opacity: 1;
+    }
+  }
+
+  @keyframes grow-x {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  /* Dùng với path có pathLength="1" và stroke-dasharray: 1. */
+  @keyframes draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes blink {
+    0%,
+    92%,
+    100% {
+      transform: scaleY(1);
+    }
+    95% {
+      transform: scaleY(0.1);
+    }
+  }
+
+  @keyframes nod {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    50% {
+      transform: rotate(3deg);
+    }
+  }
+
+  @keyframes wave-hand {
+    from {
+      transform: rotate(-14deg);
+    }
+    to {
+      transform: rotate(14deg);
     }
   }
 }
@@ -132,6 +310,16 @@
   --space-xl: 2rem; /* 32px - khe giữa các vùng lớn */
   --space-2xl: 3rem; /* 48px - khe giữa các section của trang */
   --modal-max-height: calc(100dvh - var(--space-xl));
+}
+
+/*
+ * ---------- NHỊP CHUYỂN ĐỘNG & CHẤT LIỆU ----------
+ * stagger-step: độ trễ giữa hai phần tử nổi lên liên tiếp (stagger-1, stagger-2...).
+ * texture-grain: hạt nhiễu như phim, phủ lên ánh đèn để gradient không bị sọc.
+ */
+:root {
+  --stagger-step: 90ms;
+  --texture-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /*

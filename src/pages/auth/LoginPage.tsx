@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
-import { Link, useLocation, useNavigate, type Location } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
-import { Button, Input, Stack } from '@/components/ui'
+import { Button, Input, Stack, TransitionLink } from '@/components/ui'
 import { EMAIL_PATTERN, PASSWORD_MAX_LENGTH } from '@/constants/auth'
 import { useAuth } from '@/hooks/useAuth'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
@@ -177,9 +177,9 @@ export function LoginPage() {
 
       <p className="text-center text-sm text-content-muted">
         Chưa có tài khoản?{' '}
-        <Link to={ROUTES.register} className="font-medium text-brand-600 hover:underline">
+        <TransitionLink to={ROUTES.register} className="font-medium text-brand-600 hover:underline">
           Đăng ký
-        </Link>
+        </TransitionLink>
       </p>
     </Stack>
   )

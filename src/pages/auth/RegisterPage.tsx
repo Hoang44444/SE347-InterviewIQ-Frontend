@@ -1,8 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-
+import { useNavigate } from 'react-router-dom'
+import { Button, Input, Stack, TransitionLink } from '@/components/ui'
 import { RegisterSteps } from '@/components/auth'
-import { Button, Input, Stack } from '@/components/ui'
 import {
   EMAIL_PATTERN,
   FULL_NAME_MAX_LENGTH,
@@ -224,9 +223,9 @@ export function RegisterPage() {
 
       <p className="text-center text-sm text-content-muted">
         Đã có tài khoản?{' '}
-        <Link to={ROUTES.login} className="font-medium text-brand-600 hover:underline">
+        <TransitionLink to={ROUTES.login} className="font-medium text-brand-600 hover:underline">
           Đăng nhập
-        </Link>
+        </TransitionLink>
       </p>
     </Stack>
   )

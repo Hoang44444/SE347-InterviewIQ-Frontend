@@ -45,7 +45,7 @@ export function CameraDiagnostics({ stream, videoRef }: CameraDiagnosticsProps) 
   }, [stream, videoRef])
 
   return (
-    <details open className="rounded-control border border-border bg-surface-muted px-4 py-3">
+    <details className="rounded-control border border-border bg-surface-muted px-4 py-3">
       <summary className="cursor-pointer text-sm font-medium text-content">
         Thông tin camera · development
       </summary>

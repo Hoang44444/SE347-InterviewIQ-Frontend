@@ -63,10 +63,16 @@ export function CountdownTimer({
       </p>
 
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
-        {/* Chiều rộng tính theo thời gian còn lại nên buộc phải đặt qua style. */}
+        {/*
+         * Tỉ lệ tính theo thời gian còn lại nên buộc phải đặt qua style. Dùng scale thay
+         * cho width, và chạy tuyến tính 1s cho khớp nhịp đồng hồ nhảy mỗi giây.
+         */}
         <div
-          className={cn('h-full rounded-full transition-[width] duration-200', current.bar)}
-          style={{ width: `${Math.round(ratio * 100)}%` }}
+          className={cn(
+            'h-full origin-left transition-[scale,background-color] duration-1000 ease-linear',
+            current.bar,
+          )}
+          style={{ scale: `${ratio} 1` }}
         />
       </div>
 
