@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { SessionQuestionsPanel } from './SessionQuestionsPanel'
+
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner, Stack } from '@/components/ui'
 import { SESSION_STATUS_LABEL, SESSION_STATUS_TONE } from '@/constants/interview'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { useSessionQuestions } from '@/hooks/useSessionQuestions'
 import { useStartInterviewSession } from '@/hooks/useStartInterviewSession'
 import { ROUTES } from '@/routes/paths'
 import { interviewService } from '@/services/interviewService'
@@ -65,6 +68,14 @@ export function InterviewSessionRoom({
       const state: InterviewRoomLocationState = { session: updated }
       navigate(ROUTES.interviewRoom(updated.sessionPublicId), { replace: true, state })
     },
+  })
+
+  const sessionQuestions = useSessionQuestions({
+    sessionPublicId: id,
+    reload: loadSession,
+    // totalQuestion trong danh sách phiên đã cũ sau khi sinh, cập nhật tại chỗ.
+    onGenerated: (total) =>
+      setSession((current) => (current ? { ...current, totalQuestion: total } : current)),
   })
 
   useEffect(() => {
@@ -157,19 +168,20 @@ export function InterviewSessionRoom({
                 </time>
               </p>
             )}
-            <div>
-              <h2 className="text-xl font-semibold text-content">Đang chờ nội dung câu hỏi</h2>
-              <p className="mt-2 text-content-muted">
-                Nội dung câu hỏi chưa có sẵn trong phòng này.
-              </p>
-            </div>
+            <SessionQuestionsPanel
+              status={session.status}
+              questions={sessionQuestions}
+              disabled={start.isLocked}
+            />
             {session.status === 'CREATED' && (
               <Button
                 size="lg"
                 className="self-start"
                 onClick={() => void start.start(session)}
                 isLoading={start.startingId === session.sessionPublicId}
-                disabled={isLoading || !!loadError || start.isLocked}
+                disabled={
+                  isLoading || !!loadError || start.isLocked || sessionQuestions.isGenerating
+                }
               >
                 Bắt đầu
               </Button>

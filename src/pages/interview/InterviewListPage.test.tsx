@@ -40,6 +40,11 @@ function setup({
   const requests: InternalAxiosRequestConfig[] = []
   let created: InterviewSession | null = null
   apiClient.defaults.adapter = async (config) => {
+    if (config.url?.endsWith('/questions')) {
+      // Câu hỏi của phiên không thuộc phạm vi các test này: trả rỗng, không tính vào requests.
+      const data = { sessionPublicId: 'session', questions: [] }
+      return { data: { success: true, data }, status: 200, statusText: 'OK', headers: {}, config }
+    }
     requests.push(config)
     if (config.url === `/interview-session/${sessionId}/start` && created) {
       created = { ...created, ...startedSession }
@@ -137,7 +142,7 @@ test('loads owned CVs with bearer token, disables unavailable options, and submi
   expect(screen.getByRole('option', { name: 'backend-cv.pdf' })).toHaveValue(cvId)
   expect(within(screen.getByRole('dialog')).getAllByRole('textbox')).toHaveLength(2)
   submit()
-  expect(await screen.findByText('Đang chờ nội dung câu hỏi')).toBeInTheDocument()
+  expect(await screen.findByText('Câu hỏi phỏng vấn')).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Phỏng vấn Backend Developer' })).toBeInTheDocument()
   const request = requests.find(
     ({ url, method }) => url === '/interview-session' && method === 'post',
@@ -165,7 +170,7 @@ test('omits optional blank JD from the request', async () => {
   const requests = setup()
   await fillForm('Buổi mới', '')
   submit()
-  await screen.findByText('Đang chờ nội dung câu hỏi')
+  await screen.findByText('Câu hỏi phỏng vấn')
   expect(
     JSON.parse(
       requests.find(({ url, method }) => url === '/interview-session' && method === 'post')!.data,
@@ -212,7 +217,7 @@ test('locks submission and dismissal while creating, including duplicate submit 
   expect(screen.getByRole('button', { name: 'Huỷ' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Đóng' })).toBeDisabled()
   await act(async () => resolve({ publicId: sessionId }))
-  expect(await screen.findByText('Đang chờ nội dung câu hỏi')).toBeInTheDocument()
+  expect(await screen.findByText('Câu hỏi phỏng vấn')).toBeInTheDocument()
 })
 
 test('shows backend validation beside each field and preserves input for retry', async () => {
@@ -277,7 +282,7 @@ test.each([
   submit()
   expect(await screen.findByText(message)).toBeInTheDocument()
   submit()
-  expect(await screen.findByText('Đang chờ nội dung câu hỏi')).toBeInTheDocument()
+  expect(await screen.findByText('Câu hỏi phỏng vấn')).toBeInTheDocument()
 })
 
 test('keeps creation disabled during CV loading and retries a failed CV request', async () => {
@@ -316,7 +321,9 @@ test('opens the newly created room URL in a fresh navigation without using legac
       </MemoryRouter>
     </ToastProvider>,
   )
-  expect(await screen.findByText('Đang chờ nội dung câu hỏi')).toBeInTheDocument()
-  expect(requests).toHaveLength(1)
-  expect(requests[0].url).toBe('/interview-session')
+  expect(await screen.findByText('Câu hỏi phỏng vấn')).toBeInTheDocument()
+  const sessionRequests = requests.filter((r) => !r.url?.endsWith('/questions'))
+  expect(sessionRequests).toHaveLength(1)
+  expect(sessionRequests[0].url).toBe('/interview-session')
+  expect(requests.map((r) => r.url)).toContain(`/interview-session/${sessionId}/questions`)
 })

@@ -33,6 +33,31 @@ export interface Question {
   suggestedSeconds: number
 }
 
+export type QuestionDomain = 'TECHNICAL' | 'BEHAVIORAL' | 'SITUATIONAL'
+
+export type QuestionDifficulty = 'EASY' | 'MEDIUM' | 'HARD'
+
+/** Câu hỏi do backend sinh cho một phiên (SessionQuestionsResponseDto). */
+export interface GeneratedQuestion {
+  publicId: string
+  orderIndex: number
+  /** Tối đa 500 ký tự. */
+  content: string
+  domain: QuestionDomain
+  difficulty: QuestionDifficulty
+}
+
+export interface SessionQuestions {
+  sessionPublicId: string
+  /** Đã sắp xếp theo orderIndex tăng dần; có thể rỗng nếu chưa sinh. */
+  questions: GeneratedQuestion[]
+}
+
+export interface GenerateQuestionsPayload {
+  /** Số nguyên 3–10, mặc định 5 ở backend. */
+  count?: number
+}
+
 export interface Interview {
   id: string
   title: string

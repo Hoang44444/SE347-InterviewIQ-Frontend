@@ -1,6 +1,7 @@
 import { apiClient } from './apiClient'
 import { uploadInterviewVideo } from './interviewVideoUpload'
 
+import { QUESTION_GENERATION_TIMEOUT } from '@/constants'
 import type { ApiSuccessResponse, PageResult, Paginated } from '@/types/api'
 import type {
   Answer,
@@ -14,9 +15,19 @@ import type {
   InterviewRecordingSignedParams,
   SaveAnswerPayload,
   ScoringJob,
+  SessionQuestions,
+  GenerateQuestionsPayload,
   SubmitInterviewSessionResult,
   SubmitInterviewSessionPayload,
 } from '@/types/interview'
+
+/** Backend đã sắp xếp, sắp lại ở đây để UI không phụ thuộc thứ tự response. */
+function sortQuestions(result: SessionQuestions): SessionQuestions {
+  return {
+    ...result,
+    questions: [...(result.questions ?? [])].sort((a, b) => a.orderIndex - b.orderIndex),
+  }
+}
 
 export const interviewService = {
   async listSessions(pageNumber = 1, pageSize = 20): Promise<PageResult<InterviewSession>> {
@@ -32,6 +43,31 @@ export const interviewService = {
       `/interview-session/${sessionPublicId}/start`,
     )
     return data.data
+  },
+
+  /** Câu hỏi hiện có của phiên; mảng rỗng nếu chưa sinh. */
+  async getSessionQuestions(
+    sessionPublicId: string,
+    signal?: AbortSignal,
+  ): Promise<SessionQuestions> {
+    const { data } = await apiClient.get<ApiSuccessResponse<SessionQuestions>>(
+      `/interview-session/${encodeURIComponent(sessionPublicId)}/questions`,
+      { signal },
+    )
+    return sortQuestions(data.data)
+  },
+
+  /** Sinh hoặc sinh lại: thay toàn bộ bộ câu hỏi cũ. Gọi LLM nên chậm. */
+  async generateSessionQuestions(
+    sessionPublicId: string,
+    payload: GenerateQuestionsPayload = {},
+  ): Promise<SessionQuestions> {
+    const { data } = await apiClient.post<ApiSuccessResponse<SessionQuestions>>(
+      `/interview-session/${encodeURIComponent(sessionPublicId)}/questions/generate`,
+      payload,
+      { timeout: QUESTION_GENERATION_TIMEOUT },
+    )
+    return sortQuestions(data.data)
   },
 
   /** Tạo phiên từ CV của người dùng hiện tại; response chỉ chứa publicId. */

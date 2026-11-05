@@ -1,5 +1,11 @@
 import type { BadgeProps } from '@/components/ui'
-import type { InterviewSessionStatus, InterviewStatus, QuestionKind } from '@/types/interview'
+import type {
+  InterviewSessionStatus,
+  InterviewStatus,
+  QuestionDifficulty,
+  QuestionDomain,
+  QuestionKind,
+} from '@/types/interview'
 
 export const SESSION_STATUS_LABEL: Record<InterviewSessionStatus, string> = {
   CREATED: 'Đã tạo',
@@ -53,6 +59,43 @@ export const KIND_TONE: Record<QuestionKind, NonNullable<BadgeProps['tone']>> = 
   technical: 'info',
   coding: 'warning',
 }
+
+export const DOMAIN_LABEL: Record<QuestionDomain, string> = {
+  TECHNICAL: 'Kỹ thuật',
+  BEHAVIORAL: 'Hành vi',
+  SITUATIONAL: 'Tình huống',
+}
+
+export const DOMAIN_TONE: Record<QuestionDomain, NonNullable<BadgeProps['tone']>> = {
+  TECHNICAL: 'info',
+  BEHAVIORAL: 'brand',
+  SITUATIONAL: 'warning',
+}
+
+export const DIFFICULTY_LABEL: Record<QuestionDifficulty, string> = {
+  EASY: 'Dễ',
+  MEDIUM: 'Trung bình',
+  HARD: 'Khó',
+}
+
+export const DIFFICULTY_TONE: Record<QuestionDifficulty, NonNullable<BadgeProps['tone']>> = {
+  EASY: 'success',
+  MEDIUM: 'warning',
+  HARD: 'danger',
+}
+
+/** Khớp ràng buộc count của backend khi sinh câu hỏi. */
+export const QUESTION_COUNT_MIN = 3
+export const QUESTION_COUNT_MAX = 10
+export const QUESTION_COUNT_DEFAULT = 5
+
+export const QUESTION_COUNT_OPTIONS = Array.from(
+  { length: QUESTION_COUNT_MAX - QUESTION_COUNT_MIN + 1 },
+  (_, index) => {
+    const count = QUESTION_COUNT_MIN + index
+    return { value: String(count), label: `${count} câu hỏi` }
+  },
+)
 
 /** Dùng cho thẻ <Select> khi tạo buổi phỏng vấn mới. */
 export const KIND_OPTIONS = (Object.keys(KIND_LABEL) as QuestionKind[]).map((kind) => ({
