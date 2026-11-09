@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient'
+import { cheatLogService } from './cheatLogService'
 import { uploadInterviewVideo } from './interviewVideoUpload'
 
 import { GENERATE_QUESTIONS_TIMEOUT } from '@/constants/interview'
@@ -124,4 +125,5 @@ export const interviewService = {
     )
     return data.data
   },
+  cheatLogs: cheatLogService,
 }

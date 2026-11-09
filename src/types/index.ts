@@ -1,5 +1,6 @@
 export type * from './api'
 export type * from './auth'
+export type * from './cheat'
 export type * from './cv'
 export type * from './integrity'
 export type * from './history'

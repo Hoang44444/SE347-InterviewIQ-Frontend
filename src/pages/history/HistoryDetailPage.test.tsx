@@ -28,6 +28,12 @@ const detail: InterviewHistoryDetail = {
   score: null,
   summary: null,
   questions: [],
+  isFlagged: false,
+  cheatSummary: {
+    totalCount: 0,
+    countsByType: { TAB_SWITCH: 0, WINDOW_BLUR: 0, FACE_MISSING: 0, MULTIPLE_FACES: 0 },
+  },
+  cheatLogs: [],
 }
 
 const result: SessionResult = {
@@ -175,4 +181,43 @@ test('nói rõ CV không còn thay vì để ô trống', async () => {
   setup(sessionId, { detail: () => ({ ...detail, cv: null }), result: () => result })
 
   expect(await screen.findByText('Không còn')).toBeInTheDocument()
+})
+
+test('buổi bị gắn cờ hiện nhật ký cảnh báo; buổi sạch thì không có khối này', async () => {
+  const flagged: InterviewHistoryDetail = {
+    ...detail,
+    isFlagged: true,
+    cheatSummary: {
+      totalCount: 2,
+      countsByType: { TAB_SWITCH: 1, WINDOW_BLUR: 0, FACE_MISSING: 1, MULTIPLE_FACES: 0 },
+    },
+    cheatLogs: [
+      {
+        id: 'a1',
+        eventType: 'TAB_SWITCH',
+        description: null,
+        occurredAt: '2026-10-20T08:05:00.000Z',
+        createdAt: '2026-10-20T08:05:01.000Z',
+      },
+      {
+        id: 'a2',
+        eventType: 'FACE_MISSING',
+        description: 'x',
+        occurredAt: '2026-10-20T08:06:00.000Z',
+        createdAt: '2026-10-20T08:06:01.000Z',
+      },
+    ],
+  }
+  setup(sessionId, { detail: () => flagged, result: () => result })
+
+  expect(await screen.findByText('Cảnh báo trong buổi')).toBeInTheDocument()
+  expect(screen.getByText('Rời tab phỏng vấn')).toBeInTheDocument()
+  expect(screen.getByText('Không thấy khuôn mặt trong khung hình')).toBeInTheDocument()
+})
+
+test('buổi không bị gắn cờ không hiện khối cảnh báo', async () => {
+  setup(sessionId, { detail: () => detail, result: () => result })
+
+  await screen.findByText('nguyen-van-a-cv.pdf')
+  expect(screen.queryByText('Cảnh báo trong buổi')).not.toBeInTheDocument()
 })

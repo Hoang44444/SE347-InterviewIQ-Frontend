@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { BLUR_GRACE_MS, FACE_SAMPLE_INTERVAL_MS, INTEGRITY_SEVERITY } from '@/constants/integrity'
+import {
+  BLUR_GRACE_MS,
+  CHEAT_EVENT_LABEL,
+  FACE_SAMPLE_INTERVAL_MS,
+  INTEGRITY_SEVERITY,
+  INTEGRITY_TO_CHEAT_EVENT,
+} from '@/constants/integrity'
 import { createFaceDetector } from '@/services/faceDetector'
+import type { CheatLogService, CheatSummary } from '@/types/cheat'
 import type { FaceDetectorState, IntegrityEvent, IntegrityEventType } from '@/types/integrity'
 import { createConditionTracker } from '@/utils/faceConditions'
 
@@ -11,38 +18,89 @@ export interface UseIntegrityMonitorOptions {
   stream: MediaStream | null
   /** Câu hỏi đang trả lời, gắn vào sự kiện mới. */
   questionId?: string
+  /** Cùng với `cheatLogs`: có đủ cả hai thì mới gửi và nạp log lên backend. */
+  sessionId?: string
+  cheatLogs?: CheatLogService
+}
+
+/** Bộ đếm backend trả về có thể đến lệch thứ tự: giữ bản có tổng lớn hơn. */
+function newerSummary(current: CheatSummary | null, next: CheatSummary): CheatSummary {
+  return current && current.totalCount > next.totalCount ? current : next
 }
 
 /**
- * Giai đoạn 1: ghi nhận tín hiệu nghi vấn (rời tab, thoát toàn màn hình, mất camera,
- * không thấy mặt, nhiều mặt, nhìn đi chỗ khác). Chỉ gắn cờ để người xem xét,
- * không tự kết luận gian lận. Sự kiện hiện giữ trong state; chưa gửi lên backend.
+ * Ghi nhận tín hiệu nghi vấn (rời tab, thoát toàn màn hình, mất camera, không thấy mặt,
+ * nhiều mặt, nhìn đi chỗ khác). Chỉ gắn cờ để người xem xét, không tự kết luận gian lận.
+ *
+ * Bốn loại backend hỗ trợ được gửi ngay khi sự kiện mở, mỗi sự kiện một request (backend
+ * không chống trùng; việc gộp đã làm ở `open`). Ba loại còn lại chỉ nằm trong state.
+ * Gửi lỗi thì bỏ qua: không được làm gián đoạn buổi phỏng vấn.
  */
-export function useIntegrityMonitor({ enabled, stream, questionId }: UseIntegrityMonitorOptions) {
+export function useIntegrityMonitor({
+  enabled,
+  stream,
+  questionId,
+  sessionId,
+  cheatLogs,
+}: UseIntegrityMonitorOptions) {
   const [events, setEvents] = useState<IntegrityEvent[]>([])
+  const [summary, setSummary] = useState<CheatSummary | null>(null)
   const [loadedState, setDetectorState] = useState<'idle' | 'ready' | 'unavailable'>('idle')
   const questionRef = useRef(questionId)
   const openRef = useRef(new Map<IntegrityEventType, string>())
   const counterRef = useRef(0)
 
+  const cheatRef = useRef({ sessionId, cheatLogs })
+
   useEffect(() => {
     questionRef.current = questionId
-  }, [questionId])
+    cheatRef.current = { sessionId, cheatLogs }
+  }, [questionId, sessionId, cheatLogs])
+
+  // Tải lại trang giữa chừng: lấy lại bộ đếm để cảnh báo không về 0.
+  useEffect(() => {
+    if (!sessionId || !cheatLogs) return
+    let active = true
+    cheatLogs
+      .list(sessionId)
+      .then((result) => {
+        if (active) setSummary((current) => newerSummary(current, result.summary))
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [sessionId, cheatLogs])
+
+  /** Gửi một sự kiện lên backend nếu loại đó được hỗ trợ; không chờ và không báo lỗi. */
+  const report = useCallback((type: IntegrityEventType, startedAt: string) => {
+    const eventType = INTEGRITY_TO_CHEAT_EVENT[type]
+    const { sessionId: id, cheatLogs: api } = cheatRef.current
+    if (!eventType || !id || !api) return
+    api
+      .record(id, { eventType, occurredAt: startedAt, description: CHEAT_EVENT_LABEL[eventType] })
+      .then((result) => setSummary((current) => newerSummary(current, result.summary)))
+      .catch(() => {})
+  }, [])
 
   /** Mở sự kiện mới; bỏ qua nếu cùng loại đang mở (vd. visibilitychange lặp). */
-  const open = useCallback((type: IntegrityEventType, startedAtMs: number = Date.now()) => {
-    if (openRef.current.has(type)) return
-    const id = `integrity-${++counterRef.current}`
-    openRef.current.set(type, id)
-    const event: IntegrityEvent = {
-      id,
-      type,
-      severity: INTEGRITY_SEVERITY[type],
-      questionId: questionRef.current,
-      startedAt: new Date(startedAtMs).toISOString(),
-    }
-    setEvents((current) => [...current, event])
-  }, [])
+  const open = useCallback(
+    (type: IntegrityEventType, startedAtMs: number = Date.now()) => {
+      if (openRef.current.has(type)) return
+      const id = `integrity-${++counterRef.current}`
+      openRef.current.set(type, id)
+      const event: IntegrityEvent = {
+        id,
+        type,
+        severity: INTEGRITY_SEVERITY[type],
+        questionId: questionRef.current,
+        startedAt: new Date(startedAtMs).toISOString(),
+      }
+      setEvents((current) => [...current, event])
+      report(type, event.startedAt)
+    },
+    [report],
+  )
 
   const close = useCallback((type: IntegrityEventType, endedAtMs: number = Date.now()) => {
     const id = openRef.current.get(type)
@@ -196,5 +254,5 @@ export function useIntegrityMonitor({ enabled, stream, questionId }: UseIntegrit
     enabled && stream && loadedState === 'idle' ? 'loading' : loadedState
   const activeTypes = events.filter((event) => !event.endedAt).map((event) => event.type)
 
-  return { events, activeTypes, detectorState }
+  return { events, activeTypes, detectorState, summary }
 }

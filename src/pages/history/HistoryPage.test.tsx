@@ -22,6 +22,8 @@ const completed: InterviewHistoryItem = {
   startedAt: '2026-10-20T08:00:00.000Z',
   completedAt: '2026-10-20T08:14:02.000Z',
   createdAt: '2026-10-20T07:58:11.000Z',
+  isFlagged: false,
+  cheatEventCount: 0,
 }
 
 const created: InterviewHistoryItem = {
@@ -34,6 +36,8 @@ const created: InterviewHistoryItem = {
   startedAt: null,
   completedAt: null,
   createdAt: '2026-10-19T02:12:00.000Z',
+  isFlagged: false,
+  cheatEventCount: 0,
 }
 
 function pageOf(items: InterviewHistoryItem[]): PageResult<InterviewHistoryItem> {
@@ -142,4 +146,11 @@ test('tài khoản chưa có buổi nào thì mời tạo buổi đầu tiên', 
 
   expect(await screen.findByText('Chưa có buổi phỏng vấn nào')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Tạo buổi phỏng vấn' })).toBeInTheDocument()
+})
+
+test('buổi bị gắn cờ hiện số cảnh báo, buổi sạch thì không', async () => {
+  setup(() => [{ ...completed, isFlagged: true, cheatEventCount: 3 }, created])
+
+  expect(await screen.findByText('3 cảnh báo gian lận')).toBeInTheDocument()
+  expect(screen.getAllByText(/cảnh báo gian lận/)).toHaveLength(1)
 })

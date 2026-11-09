@@ -1,3 +1,4 @@
+import type { CheatLogService } from '@/types/cheat'
 import type { InterviewRecording } from '@/types/recording'
 
 export type InterviewStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled'
@@ -135,6 +136,8 @@ export interface InterviewRoomService {
     payload: SubmitInterviewSessionPayload,
   ) => Promise<SubmitInterviewSessionResult>
   getScoringJobStatus: (jobId: string, signal?: AbortSignal) => Promise<ScoringJob>
+  /** Không có thì phòng không gửi log gian lận (phòng demo, test). */
+  cheatLogs?: CheatLogService
 }
 
 export interface CreateInterviewPayload {

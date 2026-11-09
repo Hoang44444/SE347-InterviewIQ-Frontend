@@ -4,12 +4,17 @@ import type { FaceDetectorState, IntegrityEventType } from '@/types/integrity'
 
 export interface IntegrityStatusProps {
   activeTypes: IntegrityEventType[]
-  eventCount: number
+  /** Số lần vi phạm: ưu tiên bộ đếm của backend, chưa có thì đếm cục bộ. */
+  violationCount: number
   detectorState: FaceDetectorState
 }
 
 /** Báo cho người dùng biết hệ thống đang giám sát và đang thấy gì, để họ tự chỉnh lại. */
-export function IntegrityStatus({ activeTypes, eventCount, detectorState }: IntegrityStatusProps) {
+export function IntegrityStatus({
+  activeTypes,
+  violationCount,
+  detectorState,
+}: IntegrityStatusProps) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2 text-sm text-content-muted">
@@ -20,7 +25,7 @@ export function IntegrityStatus({ activeTypes, eventCount, detectorState }: Inte
               ? 'Không bật được nhận diện khuôn mặt, vẫn ghi nhận rời tab và thoát toàn màn hình.'
               : 'Hệ thống đang ghi nhận các tín hiệu bất thường để người xem xét.'}
         </span>
-        {eventCount > 0 && <Badge tone="warning">{eventCount} cảnh báo</Badge>}
+        {violationCount > 0 && <Badge tone="warning">{violationCount} lần vi phạm</Badge>}
       </div>
       {activeTypes.length > 0 && (
         <ul
@@ -31,6 +36,11 @@ export function IntegrityStatus({ activeTypes, eventCount, detectorState }: Inte
           {activeTypes.map((type) => (
             <li key={type}>{INTEGRITY_LABEL[type]}</li>
           ))}
+          {violationCount > 0 && (
+            <li className="font-medium">
+              Đã ghi nhận {violationCount} lần vi phạm trong buổi này.
+            </li>
+          )}
         </ul>
       )}
     </div>

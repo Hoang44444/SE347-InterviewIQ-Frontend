@@ -44,7 +44,7 @@ const LOBBY_NOTES = [
   'Mỗi câu ghi một video. Nộp xong câu này mới mở câu tiếp theo.',
   'Đồng hồ chỉ bắt đầu chạy khi bạn bấm Bắt đầu phỏng vấn.',
   'Bản ghi chưa nộp sẽ mất nếu tải lại hoặc rời trang.',
-  'Trong lúc phỏng vấn, hệ thống ghi nhận rời tab, thoát toàn màn hình và phân tích hình camera ngay trên máy bạn (không có mặt, nhiều người, nhìn đi chỗ khác) để người xem xét. Hình không bị gửi đi để phân tích.',
+  'Trong lúc phỏng vấn, hệ thống ghi nhận rời tab, thoát toàn màn hình và phân tích hình camera ngay trên máy bạn (không có mặt, nhiều người, nhìn đi chỗ khác) để người xem xét. Hình không bị gửi đi để phân tích; chỉ loại và thời điểm cảnh báo được lưu vào lịch sử của bạn.',
 ]
 
 export function InterviewRoomPage() {
@@ -140,7 +140,10 @@ export function InterviewRoom({
     enabled: isStarted && !isFinished,
     stream: recorder.stream,
     questionId: currentQuestion?.id,
+    sessionId: id,
+    cheatLogs: service.cheatLogs,
   })
+  const violationCount = integrity.summary?.totalCount ?? integrity.events.length
   const answeredIds = useMemo(() => new Set(Object.keys(savedAnswers)), [savedAnswers])
 
   const hasUnsaved = questions.some(
@@ -638,7 +641,7 @@ export function InterviewRoom({
             isStarted && !isFinished ? (
               <IntegrityStatus
                 activeTypes={integrity.activeTypes}
-                eventCount={integrity.events.length}
+                violationCount={violationCount}
                 detectorState={integrity.detectorState}
               />
             ) : undefined

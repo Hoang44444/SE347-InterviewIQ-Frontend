@@ -1,4 +1,5 @@
 import type { BadgeProps } from '@/components/ui'
+import type { CheatEventType } from '@/types/cheat'
 import type { FaceCondition, IntegrityEventType, IntegritySeverity } from '@/types/integrity'
 
 export const INTEGRITY_LABEL: Record<IntegrityEventType, string> = {
@@ -9,6 +10,24 @@ export const INTEGRITY_LABEL: Record<IntegrityEventType, string> = {
   NO_FACE: 'Không thấy khuôn mặt trong khung hình',
   MULTIPLE_FACES: 'Có nhiều hơn một khuôn mặt',
   LOOKING_AWAY: 'Đang nhìn ra ngoài màn hình',
+}
+
+/**
+ * Loại backend ghi nhận được. FULLSCREEN_EXIT, CAMERA_LOST và LOOKING_AWAY không
+ * có trong enum của backend nên chỉ hiện ở UI, không gửi đi.
+ */
+export const INTEGRITY_TO_CHEAT_EVENT: Partial<Record<IntegrityEventType, CheatEventType>> = {
+  TAB_HIDDEN: 'TAB_SWITCH',
+  WINDOW_BLUR: 'WINDOW_BLUR',
+  NO_FACE: 'FACE_MISSING',
+  MULTIPLE_FACES: 'MULTIPLE_FACES',
+}
+
+export const CHEAT_EVENT_LABEL: Record<CheatEventType, string> = {
+  TAB_SWITCH: 'Rời tab phỏng vấn',
+  WINDOW_BLUR: 'Chuyển sang cửa sổ khác',
+  FACE_MISSING: 'Không thấy khuôn mặt trong khung hình',
+  MULTIPLE_FACES: 'Có nhiều hơn một khuôn mặt',
 }
 
 export const INTEGRITY_SEVERITY: Record<IntegrityEventType, IntegritySeverity> = {

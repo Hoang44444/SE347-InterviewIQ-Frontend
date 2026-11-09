@@ -3,6 +3,8 @@ import { afterEach, expect, test, vi } from 'vitest'
 
 import { useIntegrityMonitor } from './useIntegrityMonitor'
 
+import type { CheatLogService, CheatSummary } from '@/types/cheat'
+
 vi.mock('@/services/faceDetector', () => ({
   createFaceDetector: () => Promise.reject(new Error('no wasm in tests')),
 }))
@@ -111,4 +113,75 @@ test('flags camera loss, recovers on unmute, and degrades when the detector cann
     track.dispatchEvent(new Event('unmute'))
   })
   expect(result.current.activeTypes).toEqual([])
+})
+
+const summaryOf = (totalCount: number): CheatSummary => ({
+  totalCount,
+  countsByType: { TAB_SWITCH: totalCount, WINDOW_BLUR: 0, FACE_MISSING: 0, MULTIPLE_FACES: 0 },
+})
+
+function fakeCheatLogs(overrides: Partial<CheatLogService> = {}): CheatLogService {
+  return {
+    record: vi.fn().mockResolvedValue({ log: {}, summary: summaryOf(1) }),
+    list: vi.fn().mockResolvedValue({ logs: [], summary: summaryOf(0) }),
+    ...overrides,
+  }
+}
+
+test('sends a supported event once with its start time and keeps the returned counter', async () => {
+  const cheatLogs = fakeCheatLogs()
+  const { result } = renderHook(() =>
+    useIntegrityMonitor({ enabled: true, stream: null, sessionId: 's1', cheatLogs }),
+  )
+  await act(async () => setVisibility('hidden'))
+  await act(async () => setVisibility('hidden'))
+
+  expect(cheatLogs.record).toHaveBeenCalledTimes(1)
+  expect(cheatLogs.record).toHaveBeenCalledWith('s1', {
+    eventType: 'TAB_SWITCH',
+    occurredAt: result.current.events[0].startedAt,
+    description: 'Rời tab phỏng vấn',
+  })
+  expect(result.current.summary?.totalCount).toBe(1)
+})
+
+test('does not send event types the backend does not know', async () => {
+  const cheatLogs = fakeCheatLogs()
+  renderHook(() => useIntegrityMonitor({ enabled: true, stream: null, sessionId: 's1', cheatLogs }))
+  Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: {} })
+  act(() => {
+    document.dispatchEvent(new Event('fullscreenchange'))
+  })
+  Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null })
+  await act(async () => {
+    document.dispatchEvent(new Event('fullscreenchange'))
+  })
+
+  expect(cheatLogs.record).not.toHaveBeenCalled()
+})
+
+test('restores the counter on mount and keeps the higher one when responses arrive out of order', async () => {
+  const cheatLogs = fakeCheatLogs({
+    list: vi.fn().mockResolvedValue({ logs: [], summary: summaryOf(3) }),
+    record: vi.fn().mockResolvedValue({ log: {}, summary: summaryOf(2) }),
+  })
+  const { result } = renderHook(() =>
+    useIntegrityMonitor({ enabled: true, stream: null, sessionId: 's1', cheatLogs }),
+  )
+  await vi.waitFor(() => expect(result.current.summary?.totalCount).toBe(3))
+
+  await act(async () => setVisibility('hidden'))
+  expect(result.current.summary?.totalCount).toBe(3)
+})
+
+test('a failing request never breaks monitoring', async () => {
+  const cheatLogs = fakeCheatLogs({ record: vi.fn().mockRejectedValue({ status: 409 }) })
+  const { result } = renderHook(() =>
+    useIntegrityMonitor({ enabled: true, stream: null, sessionId: 's1', cheatLogs }),
+  )
+  await act(async () => setVisibility('hidden'))
+
+  expect(result.current.events).toHaveLength(1)
+  // Bộ đếm giữ nguyên giá trị đã nạp lúc vào phòng, không bị xoá khi ghi lỗi.
+  expect(result.current.summary?.totalCount).toBe(0)
 })

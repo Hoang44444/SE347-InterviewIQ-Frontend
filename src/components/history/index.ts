@@ -1,3 +1,4 @@
+export { CheatLogPanel, type CheatLogPanelProps } from './CheatLogPanel'
 export { HistoryFilters, type HistoryFiltersProps } from './HistoryFilters'
 export { HistoryResultPanel, type HistoryResultPanelProps } from './HistoryResultPanel'
 export { HistoryRow, type HistoryRowProps } from './HistoryRow'
