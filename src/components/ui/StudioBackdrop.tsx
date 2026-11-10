@@ -12,7 +12,7 @@ let hasLitUp = false
  * Mức độ của nền studio:
  *  - stage: trang chủ, đủ đèn chính, 3 luồng sáng, bụi sáng và bokeh, dịch theo chuột
  *  - soft: đăng nhập/đăng ký, 2 luồng sáng hai bên và ít bụi để form vẫn là trọng tâm
- *  - quiet: các trang làm việc, chỉ còn quầng đèn tĩnh, không chuyển động
+ *  - quiet: các trang làm việc, quầng đèn tĩnh và đường đồng mức mờ, không chuyển động
  *  - dim: 404, phòng tắt đèn, đèn chập chờn và vài hạt bụi
  */
 export type StudioLight = 'stage' | 'soft' | 'quiet' | 'dim'
@@ -278,6 +278,8 @@ export function StudioBackdrop({ light = 'stage' }: StudioBackdropProps) {
       ))}
 
       {hasMotes && <canvas ref={canvasRef} className="absolute inset-0 size-full" />}
+
+      {light === 'quiet' && <div className="absolute inset-0 bg-contour" />}
 
       <div className="absolute inset-0 bg-studio-vignette" />
       <div className="absolute inset-0 bg-grain" />

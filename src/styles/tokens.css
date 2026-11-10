@@ -77,6 +77,8 @@
   /* Luồng sáng và bụi sáng: gần trắng, chỉ thấy rõ khi nằm trên quầng đèn xanh. */
   --color-light-beam: oklch(0.995 0.01 259 / 0.85);
   --color-light-mote: oklch(0.995 0.008 259);
+  /* Đường đồng mức trên nền các trang làm việc: cùng tông xanh với đèn chính, rất nhạt. */
+  --color-contour: oklch(0.62 0.12 259 / 0.28);
   /* Viền tối rất nhẹ ở mép màn hình cho nền có chiều sâu. */
   --color-light-vignette: oklch(0.208 0.042 266 / 0.07);
 

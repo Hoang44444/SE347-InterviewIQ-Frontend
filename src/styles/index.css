@@ -151,6 +151,22 @@
   mask-image: linear-gradient(to bottom, black, transparent 80%);
 }
 
+/*
+ * Đường đồng mức như bản đồ địa hình, cứ năm đường có một đường đậm. SVG chỉ làm
+ * mask nên màu đi theo token; mask thứ hai mờ dần ra rìa để không tranh chỗ với nội dung.
+ */
+@utility bg-contour {
+  background-color: var(--color-contour);
+  mask-image:
+    url('./contours.svg'), radial-gradient(ellipse 90% 80% at 50% 45%, black 20%, transparent 100%);
+  mask-size:
+    cover,
+    100% 100%;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-composite: intersect;
+}
+
 @utility bg-studio-vignette {
   background-image: radial-gradient(
     ellipse 120% 100% at 50% 30%,
