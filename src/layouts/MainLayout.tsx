@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import { BrandLogo } from '@/components/brand/BrandLogo'
 import {
   Avatar,
   Button,
@@ -56,7 +57,8 @@ export function MainLayout() {
        */}
       <StudioBackdrop light={pathname === ROUTES.home ? 'stage' : 'quiet'} />
       <Navbar
-        brand={APP_NAME}
+        brand={<BrandLogo name={APP_NAME} />}
+        variant={pathname === ROUTES.home ? 'glass' : 'solid'}
         brandTo={ROUTES.home}
         items={isAuthenticated ? NAV_ITEMS : []}
         actions={

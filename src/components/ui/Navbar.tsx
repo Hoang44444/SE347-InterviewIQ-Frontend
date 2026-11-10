@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 
 import { Container } from './Container'
@@ -17,6 +17,11 @@ export interface NavbarProps {
   items?: NavItem[]
   /** Vùng bên phải: nút đăng nhập, tên người dùng, nút đăng xuất... */
   actions?: ReactNode
+  /**
+   * solid: thanh nền đặc như các trang làm việc.
+   * glass: trong suốt ở đầu trang để nền hiện qua, chỉ đặc lại khi cuộn xuống.
+   */
+  variant?: 'solid' | 'glass'
 }
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -25,14 +30,34 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-brand-50 text-brand-700' : 'text-content-muted hover:bg-surface-sunken',
   )
 
-export function Navbar({ brand, brandTo, items = [], actions }: NavbarProps) {
+export function Navbar({ brand, brandTo, items = [], actions, variant = 'solid' }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isScrolled, setIsScrolled] = useState(false)
+  const isFloating = variant === 'glass' && !isScrolled && !isMenuOpen
+
+  useEffect(() => {
+    if (variant !== 'glass') return
+    const update = () => setIsScrolled(window.scrollY > 8)
+    update()
+    window.addEventListener('scroll', update, { passive: true })
+    return () => window.removeEventListener('scroll', update)
+  }, [variant])
 
   return (
-    <header className="sticky top-0 z-[var(--z-navbar)] border-b border-border bg-surface/85 backdrop-blur-sm">
+    <header
+      className={cn(
+        'sticky top-0 z-[var(--z-navbar)] border-b backdrop-blur-sm transition-colors duration-300',
+        isFloating
+          ? 'border-transparent bg-transparent backdrop-blur-none'
+          : 'border-border bg-surface/85',
+      )}
+    >
       <Container>
         <div className="flex h-16 items-center gap-6">
-          <Link to={brandTo} className="text-lg font-bold text-brand-600">
+          <Link
+            to={brandTo}
+            className="flex rounded-control focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-600"
+          >
             {brand}
           </Link>
 
