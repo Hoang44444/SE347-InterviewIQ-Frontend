@@ -185,3 +185,73 @@ test('a failing request never breaks monitoring', async () => {
   // Bộ đếm giữ nguyên giá trị đã nạp lúc vào phòng, không bị xoá khi ghi lỗi.
   expect(result.current.summary?.totalCount).toBe(0)
 })
+
+test('retries a transient failure after 2s with the same occurredAt and keeps the counter', async () => {
+  vi.useFakeTimers()
+  const record = vi
+    .fn()
+    .mockRejectedValueOnce({ status: 0 })
+    .mockResolvedValue({ log: {}, summary: summaryOf(1) })
+  const cheatLogs = fakeCheatLogs({ record })
+  const { result } = renderHook(() =>
+    useIntegrityMonitor({ enabled: true, stream: null, sessionId: 's1', cheatLogs }),
+  )
+  await act(async () => setVisibility('hidden'))
+  expect(record).toHaveBeenCalledTimes(1)
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2000)
+  })
+
+  expect(record).toHaveBeenCalledTimes(2)
+  expect(record.mock.calls[1][1].occurredAt).toBe(record.mock.calls[0][1].occurredAt)
+  expect(result.current.summary?.totalCount).toBe(1)
+})
+
+test('does not retry a client error such as 409', async () => {
+  vi.useFakeTimers()
+  const record = vi.fn().mockRejectedValue({ status: 409 })
+  const cheatLogs = fakeCheatLogs({ record })
+  renderHook(() => useIntegrityMonitor({ enabled: true, stream: null, sessionId: 's1', cheatLogs }))
+  await act(async () => setVisibility('hidden'))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(120_000)
+  })
+
+  expect(record).toHaveBeenCalledTimes(1)
+})
+
+test('gives up after five retries', async () => {
+  vi.useFakeTimers()
+  const record = vi.fn().mockRejectedValue({ status: 503 })
+  const cheatLogs = fakeCheatLogs({ record })
+  renderHook(() => useIntegrityMonitor({ enabled: true, stream: null, sessionId: 's1', cheatLogs }))
+  await act(async () => setVisibility('hidden'))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(300_000)
+  })
+
+  expect(record).toHaveBeenCalledTimes(6)
+})
+
+test('keeps retrying after monitoring is disabled but stops on unmount', async () => {
+  vi.useFakeTimers()
+  const record = vi.fn().mockRejectedValue({ status: 0 })
+  const cheatLogs = fakeCheatLogs({ record })
+  const { rerender, unmount } = renderHook(
+    ({ enabled }) => useIntegrityMonitor({ enabled, stream: null, sessionId: 's1', cheatLogs }),
+    { initialProps: { enabled: true } },
+  )
+  await act(async () => setVisibility('hidden'))
+  rerender({ enabled: false })
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2000)
+  })
+  expect(record).toHaveBeenCalledTimes(2)
+
+  unmount()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(300_000)
+  })
+  expect(record).toHaveBeenCalledTimes(2)
+})

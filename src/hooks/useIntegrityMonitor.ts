@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   BLUR_GRACE_MS,
   CHEAT_EVENT_LABEL,
+  CHEAT_LOG_RETRY_DELAYS_MS,
   FACE_SAMPLE_INTERVAL_MS,
   INTEGRITY_SEVERITY,
   INTEGRITY_TO_CHEAT_EVENT,
@@ -10,6 +11,7 @@ import {
 import { createFaceDetector } from '@/services/faceDetector'
 import type { CheatLogService, CheatSummary } from '@/types/cheat'
 import type { FaceDetectorState, IntegrityEvent, IntegrityEventType } from '@/types/integrity'
+import { isRetryableCheatLogError } from '@/utils/cheatLogRetry'
 import { createConditionTracker } from '@/utils/faceConditions'
 
 export interface UseIntegrityMonitorOptions {
@@ -72,15 +74,48 @@ export function useIntegrityMonitor({
     }
   }, [sessionId, cheatLogs])
 
-  /** Gửi một sự kiện lên backend nếu loại đó được hỗ trợ; không chờ và không báo lỗi. */
+  const retryTimersRef = useRef(new Set<number>())
+
+  // Rời phòng thì thôi gửi lại. Cố ý không phụ thuộc `enabled`: nộp bài xong vẫn được
+  // gửi nốt các log đang chờ, vì backend nhận log trễ trong 5 phút.
+  useEffect(() => {
+    const timers = retryTimersRef.current
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer))
+      timers.clear()
+    }
+  }, [])
+
+  /**
+   * Gửi một sự kiện lên backend nếu loại đó được hỗ trợ; không chờ và không báo lỗi.
+   * Lỗi tạm thời thì gửi lại theo lịch, giữ nguyên `occurredAt` gốc.
+   */
   const report = useCallback((type: IntegrityEventType, startedAt: string) => {
     const eventType = INTEGRITY_TO_CHEAT_EVENT[type]
     const { sessionId: id, cheatLogs: api } = cheatRef.current
     if (!eventType || !id || !api) return
-    api
-      .record(id, { eventType, occurredAt: startedAt, description: CHEAT_EVENT_LABEL[eventType] })
-      .then((result) => setSummary((current) => newerSummary(current, result.summary)))
-      .catch(() => {})
+    const payload = {
+      eventType,
+      occurredAt: startedAt,
+      description: CHEAT_EVENT_LABEL[eventType],
+    }
+    const timers = retryTimersRef.current
+
+    const send = (attempt: number) => {
+      api
+        .record(id, payload)
+        .then((result) => setSummary((current) => newerSummary(current, result.summary)))
+        .catch((error: unknown) => {
+          const delay = CHEAT_LOG_RETRY_DELAYS_MS[attempt]
+          if (delay === undefined || !isRetryableCheatLogError(error)) return
+          const timer = window.setTimeout(() => {
+            timers.delete(timer)
+            send(attempt + 1)
+          }, delay)
+          timers.add(timer)
+        })
+    }
+    send(0)
   }, [])
 
   /** Mở sự kiện mới; bỏ qua nếu cùng loại đang mở (vd. visibilitychange lặp). */

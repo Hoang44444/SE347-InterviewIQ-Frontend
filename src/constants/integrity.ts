@@ -63,6 +63,12 @@ export const FACE_THRESHOLDS = {
   maxPitchDeg: 40,
 } as const
 
+/**
+ * Chờ giữa các lần gửi lại cheat log khi lỗi tạm thời (mất mạng, 5xx). Tổng khoảng
+ * 112 giây, nằm trong cửa sổ 5 phút backend nhận log trễ sau khi nộp bài.
+ */
+export const CHEAT_LOG_RETRY_DELAYS_MS = [2000, 5000, 15000, 30000, 60000] as const
+
 /** Chu kỳ lấy mẫu khuôn mặt (ms). 2 lần/giây là đủ và nhẹ máy. */
 export const FACE_SAMPLE_INTERVAL_MS = 500
 
