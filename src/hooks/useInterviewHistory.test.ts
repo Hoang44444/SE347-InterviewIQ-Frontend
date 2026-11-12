@@ -28,6 +28,8 @@ function pageOf(title: string, currentPage = 1): HistoryPage {
         startedAt: null,
         completedAt: null,
         createdAt: '2026-10-20T07:58:11.000Z',
+        isFlagged: false,
+        cheatEventCount: 0,
       },
     ],
     totalPages: 3,

@@ -42,6 +42,9 @@ export function HistoryRow({ item }: HistoryRowProps) {
             <Badge tone={SESSION_STATUS_TONE[item.status]}>
               {SESSION_STATUS_LABEL[item.status]}
             </Badge>
+            {item.isFlagged && (
+              <Badge tone="warning">{item.cheatEventCount} cảnh báo gian lận</Badge>
+            )}
           </div>
           <p className="mt-1 text-sm text-content-subtle">
             {item.totalQuestions} câu hỏi &middot; {formatDateTime(item.createdAt)}

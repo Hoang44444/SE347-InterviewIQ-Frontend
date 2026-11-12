@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 
-import { HistoryResultPanel, HistoryTimeline } from '@/components/history'
+import { CheatLogPanel, HistoryResultPanel, HistoryTimeline } from '@/components/history'
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner, Stack } from '@/components/ui'
 import { SESSION_STATUS_LABEL, SESSION_STATUS_TONE } from '@/constants/interview'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
@@ -128,6 +128,10 @@ export function HistoryDetailPage() {
               <HistoryTimeline detail={detail} />
             </Stack>
           </Card>
+
+          {detail.isFlagged && (
+            <CheatLogPanel summary={detail.cheatSummary} logs={detail.cheatLogs} />
+          )}
 
           {detail.jobDescription && (
             <Card padding="lg">

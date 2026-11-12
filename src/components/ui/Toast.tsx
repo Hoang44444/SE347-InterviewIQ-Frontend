@@ -25,7 +25,8 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
       role={toast.tone === 'error' ? 'alert' : 'status'}
       className={cn(
         // Toast cố tình để vuông góc, không bo góc như thẻ và modal.
-        'animate-toast-in pointer-events-auto flex w-80 items-start gap-3 rounded-none border p-4 shadow-popover',
+        'pointer-events-auto flex w-80 items-start gap-3 rounded-none border p-4 shadow-popover',
+        toast.leaving ? 'pointer-events-none animate-toast-out' : 'animate-toast-in',
         TONE_CLASS[toast.tone],
       )}
     >

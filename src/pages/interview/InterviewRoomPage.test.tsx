@@ -14,15 +14,23 @@ beforeEach(() => {
   mockMediaDevices()
 })
 
-async function openRoom(service: InterviewRoomService) {
-  const view = render(
+function renderLobby(service: InterviewRoomService) {
+  return render(
     <MemoryRouter>
       <ToastProvider>
         <InterviewRoom id="session" service={service} />
       </ToastProvider>
     </MemoryRouter>,
   )
-  fireEvent.click(await screen.findByRole('button', { name: 'Bắt đầu phỏng vấn' }))
+}
+/** Phòng chờ: bật camera và micro trước, nút bắt đầu chỉ mở khi thiết bị sẵn sàng. */
+async function openRoom(service: InterviewRoomService) {
+  const view = renderLobby(service)
+  const start = await screen.findByRole('button', { name: 'Bắt đầu phỏng vấn' })
+  expect(start).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: 'Bật camera và micro' }))
+  await waitFor(() => expect(start).toBeEnabled())
+  fireEvent.click(start)
   return view
 }
 async function startVideo() {
@@ -31,7 +39,7 @@ async function startVideo() {
   fireEvent.click(await screen.findByRole('button', { name: 'Bắt đầu ghi' }))
 }
 function submitAnswer() {
-  fireEvent.click(screen.getByRole('button', { name: /Đã trả lời xong/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Nộp câu trả lời' }))
 }
 async function saveVideo() {
   await startVideo()
@@ -48,7 +56,8 @@ test('requires video, preserves empty transcript and advances only after PUT suc
   const pending = deferred<Answer>()
   vi.mocked(service.submitAnswer).mockReturnValueOnce(pending.promise)
   await openRoom(service)
-  expect(screen.getByRole('button', { name: 'Nộp session' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Nộp bài phỏng vấn' })).toBeDisabled()
+  expect(screen.getByRole('textbox')).toHaveAttribute('maxlength', '50000')
   submitAnswer()
   await screen.findByText('Cần có video')
   expect(service.getAnswerSignedParams).not.toHaveBeenCalled()
@@ -69,7 +78,7 @@ test('requires video, preserves empty transcript and advances only after PUT suc
     cloudinaryPublicId: 'interview-answers/user/session/question/upload',
     transcript: '',
   })
-  expect(screen.getByRole('button', { name: 'Nộp session' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Nộp bài phỏng vấn' })).toBeDisabled()
 })
 
 test('failed PUT keeps recording/transcript and retry saves without uploading again', async () => {
@@ -111,10 +120,10 @@ test('enables confirmation only after all saves; 202 shows scoring and separate 
   await saveVideo()
   await screen.findByRole('heading', { name: 'Second question' })
   await saveVideo()
-  const finish = screen.getByRole('button', { name: 'Nộp session' })
+  const finish = screen.getByRole('button', { name: 'Nộp bài phỏng vấn' })
   await waitFor(() => expect(finish).toBeEnabled())
   fireEvent.click(finish)
-  const dialog = screen.getByRole('dialog', { name: 'Nộp session để chấm điểm' })
+  const dialog = screen.getByRole('dialog', { name: 'Nộp bài phỏng vấn để chấm điểm' })
   expect(service.finishSession).not.toHaveBeenCalled()
   fireEvent.click(within(dialog).getByRole('button', { name: 'Xác nhận nộp' }))
   expect(await screen.findByRole('heading', { name: /Đã nộp/ })).toBeInTheDocument()
@@ -140,50 +149,62 @@ test('submit failure freezes answers and exposes only session retry', async () =
   await saveVideo()
   await screen.findByRole('heading', { name: 'Second question' })
   await saveVideo()
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Nộp session' })).toBeEnabled())
-  fireEvent.click(screen.getByRole('button', { name: 'Nộp session' }))
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Nộp bài phỏng vấn' })).toBeEnabled(),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Nộp bài phỏng vấn' }))
   fireEvent.click(
-    within(screen.getByRole('dialog', { name: 'Nộp session để chấm điểm' })).getByRole('button', {
-      name: 'Xác nhận nộp',
-    }),
+    within(screen.getByRole('dialog', { name: 'Nộp bài phỏng vấn để chấm điểm' })).getByRole(
+      'button',
+      {
+        name: 'Xác nhận nộp',
+      },
+    ),
   )
   expect(
     await screen.findByText('Queue unavailable', { selector: 'p[role="alert"]' }),
   ).toBeInTheDocument()
   expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Thử nộp session lại' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Thử nộp bài lại' }))
   await screen.findByRole('heading', { name: /Đã nộp/ })
   expect(service.finishSession).toHaveBeenCalledTimes(2)
   expect(service.uploadAnswerVideo).toHaveBeenCalledTimes(2)
 })
 
-test('permission denial explains required video; transcript has 50000 character limit', async () => {
+test('lobby keeps the clock stopped until camera and micro are allowed', async () => {
   const { getUserMedia } = mockMediaDevices()
   getUserMedia.mockRejectedValue(new DOMException('Denied', 'NotAllowedError'))
-  await openRoom(roomService())
-  expect(screen.getByRole('textbox')).toHaveAttribute('maxlength', '50000')
+  renderLobby(roomService())
+  const start = await screen.findByRole('button', { name: 'Bắt đầu phỏng vấn' })
   fireEvent.click(screen.getByRole('button', { name: 'Bật camera và micro' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Chưa được cấp quyền')
+  expect(start).toBeDisabled()
+  fireEvent.click(start)
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Tiếp tục bằng chữ' })).not.toBeInTheDocument()
 })
 
-test('pending device permission can be canceled while transcript stays editable', async () => {
-  const { getUserMedia, tracks } = mockMediaDevices()
-  const pending = deferred<MediaStream>()
-  getUserMedia.mockReturnValue(pending.promise)
+test('pending device permission in the room can be canceled while notes stay editable', async () => {
+  const { getUserMedia } = mockMediaDevices()
   const service = roomService()
   await openRoom(service)
-  fireEvent.click(screen.getByRole('button', { name: 'Bật camera và micro' }))
+  // Tắt thiết bị giữa buổi rồi bật lại, lần xin quyền này treo chờ người dùng.
+  fireEvent.click(screen.getByRole('button', { name: 'Tắt camera và micro' }))
+  const enable = await screen.findByRole('button', { name: 'Bật camera và micro' })
+  const pending = deferred<MediaStream>()
+  getUserMedia.mockReturnValueOnce(pending.promise)
+  fireEvent.click(enable)
   expect(screen.getByRole('textbox')).toBeEnabled()
   expect(screen.getByRole('button', { name: 'Hủy yêu cầu thiết bị' })).toBeEnabled()
-  expect(screen.getByRole('button', { name: /Đã trả lời xong/ })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Nộp câu trả lời' })).toBeDisabled()
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'draft during permission' } })
   fireEvent.click(screen.getByRole('button', { name: 'Hủy yêu cầu thiết bị' }))
   await screen.findByRole('button', { name: 'Bật camera và micro' })
+  const lateTracks = [{ stop: vi.fn() }, { stop: vi.fn() }]
   await act(async () => {
-    pending.resolve({ getTracks: () => tracks } as unknown as MediaStream)
+    pending.resolve({ getTracks: () => lateTracks } as unknown as MediaStream)
   })
-  for (const track of tracks) expect(track.stop).toHaveBeenCalled()
+  for (const track of lateTracks) expect(track.stop).toHaveBeenCalled()
   expect(screen.getByRole('textbox')).toHaveValue('draft during permission')
   expect(service.getAnswerSignedParams).not.toHaveBeenCalled()
 })

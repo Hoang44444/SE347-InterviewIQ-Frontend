@@ -33,6 +33,12 @@ const detail: InterviewHistoryDetail = {
   score: null,
   summary: null,
   questions: [],
+  isFlagged: false,
+  cheatSummary: {
+    totalCount: 0,
+    countsByType: { TAB_SWITCH: 0, WINDOW_BLUR: 0, FACE_MISSING: 0, MULTIPLE_FACES: 0 },
+  },
+  cheatLogs: [],
 }
 
 const originalAdapter = apiClient.defaults.adapter

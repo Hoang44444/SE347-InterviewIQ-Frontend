@@ -1,3 +1,4 @@
+import type { CheatLog, CheatSummary } from '@/types/cheat'
 import type { InterviewSessionStatus } from '@/types/interview'
 
 /**
@@ -19,6 +20,9 @@ export interface InterviewHistoryItem {
   completedAt: string | null
   /** Mốc backend dùng để sắp xếp và để lọc theo khoảng thời gian. */
   createdAt: string
+  /** Tính lúc đọc: true khi buổi có ít nhất 1 cheat log. */
+  isFlagged: boolean
+  cheatEventCount: number
 }
 
 /** CV gắn với buổi phỏng vấn. Chỉ có tên file, không có nội dung đã parse. */
@@ -54,6 +58,10 @@ export interface InterviewHistoryDetail {
   summary: unknown
   /** Luôn là mảng, không bao giờ null. */
   questions: unknown[]
+  isFlagged: boolean
+  cheatSummary: CheatSummary
+  /** Luôn là mảng, sắp theo occurredAt tăng dần. */
+  cheatLogs: CheatLog[]
 }
 
 /**
