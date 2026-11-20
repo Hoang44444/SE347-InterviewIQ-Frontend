@@ -16,14 +16,14 @@ const BAR_CLASS: Record<ScoreTone, string> = {
   danger: 'bg-danger-600',
 }
 
-const CENTER_X = 110
+const CENTER_X = 130
 const CENTER_Y = 108
 const MAX_RADIUS = 64
 const GRID_LEVELS = [0.25, 0.5, 0.75, 1] as const
 const AXES = [
-  { angleDeg: -90, labelX: 110, labelY: 28, anchor: 'middle' as const },
-  { angleDeg: 30, labelX: 176, labelY: 152, anchor: 'start' as const },
-  { angleDeg: 150, labelX: 44, labelY: 152, anchor: 'end' as const },
+  { angleDeg: -90, labelX: 130, labelY: 28, anchor: 'middle' as const },
+  { angleDeg: 30, labelX: 192, labelY: 152, anchor: 'start' as const },
+  { angleDeg: 150, labelX: 68, labelY: 152, anchor: 'end' as const },
 ] as const
 
 function polarPoint(angleDeg: number, ratio: number): [number, number] {
@@ -65,8 +65,8 @@ export function ScoreBreakdownChart({ scores }: ScoreBreakdownChartProps) {
         <svg
           role="img"
           aria-label={ariaSummary}
-          viewBox="0 0 220 180"
-          className="h-44 w-52 max-w-full"
+          viewBox="0 0 260 180"
+          className="h-44 w-64 max-w-full"
         >
           {GRID_LEVELS.map((level) => (
             <polygon
