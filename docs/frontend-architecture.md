@@ -111,7 +111,8 @@ claiming success or inventing an existing job ID. A 202 stores the returned
 authenticated `/scoring/jobs/:jobId/status` endpoint. Requests run sequentially,
 three seconds after each previous response; COMPLETED/FAILED or unmount stops
 them. Polling failures retain the job and allow a manual check. Status metadata
-does not contain scores.
+does not contain scores; once the job reaches `COMPLETED`, the summary links directly
+to `/history/:id` (`ROUTES.historyDetail(id)`) to view the full score breakdown.
 
 Run `npm test` for Vitest/jsdom/Testing Library checks of clock semantics, signed
 form/API contracts, upload validation, retries/retakes, sequential room behavior,
@@ -246,6 +247,16 @@ data and never sends video to Cloudinary/backend; authenticated interview routes
 - **Pace**: words are counted by whitespace (`src/utils/speechRate.ts`). `currentWpm` covers the last 15 seconds (the elapsed time while the window is not full) and stays `null` until 8 seconds have been heard. `averageWpm` covers the whole answer. The clock counts listening time only, silence included, and is paused by `stop`. `pace` is `slow` below 90 and `fast` above 180 words per minute, which suits Vietnamese (about 120–160 when speaking naturally). Pace becomes `slow` again after a long silence.
 
 To wire it into the room: call the hook in `InterviewRoom`, `start()` when recording the current question begins and `stop()` when it ends (`reset()` when moving to the next question or on a retake); copy `transcript` into `drafts[currentQuestion.id]`, which stays editable; show `pace` next to `InterviewRecorder` with a `Badge`; and show `error.message` or an `unsupported` notice without disabling manual entry.
+
+## Scoring Result & Live Updates
+
+`GET /api/scoring/stream` delivers real-time `job-update` (`answer-scored` / `answer-failed`) and `ping` heartbeat events over Server-Sent Events. The client uses `fetch` + `ReadableStream` (`src/services/scoringStreamService.ts`) parsed by the pure `createSseParser` (`src/utils/sseParser.ts`) instead of the native `EventSource` API, because `EventSource` cannot attach the `Authorization: Bearer` header required by the backend guard.
+
+- **Auth & 401 refresh**: On `401`, `openScoringStream` calls the shared `refreshAccessToken()` exported from `apiClient.ts` once (never calling `/auth/refresh` directly so single-flight refresh and Web Locks stay intact). A fresh token triggers an immediate reconnect; `null` stops the stream cleanly. `403` and other `4xx` responses also stop without reconnecting.
+- **Reconnect & missed-event recovery**: On network failures, `5xx`, or unexpected stream closure while not aborted, `openScoringStream` reconnects with exponential backoff (`1s → 2s → 4s → 8s → 15s`, `SCORING_STREAM_BACKOFF_MS`) and resets the backoff once opened. Because SSE is in-memory and does not replay events emitted while disconnected, `HistoryDetailPage` passes `reload` to `onConnected` so every successful open or reconnect re-syncs the session status once.
+- **React lifecycle**: `useScoringStream` opens only when `enabled` (`SUBMITTED` or `SCORING`) and `sessionId` are set, filters events to `event.payload.sessionId === sessionId`, stores callbacks in refs so callback updates never reopen the stream, and aborts both the fetch and any pending backoff timer on unmount.
+- **Result view (`src/components/scoring/`)**: `HistoryResultPanel` delegates completed results to `ScoringResultView`, which composes `ScoreValue` (overall score), `ScoreBreakdownChart` (3-pillar SVG radar + horizontal bars), `FeedbackList` (strengths/improvements with `FeedbackCategory` badges and model/version metadata), and `EmotionTimeline` (per-question stacked bars with legend, screen-reader breakdown, empty state, and non-evaluative disclaimer).
+- **Emotion color mapping**: To keep `src/styles/tokens.css` unchanged, the 7 emotion labels map onto existing semantic tokens: `neutral` → `bg-border-strong`, `happy` → `bg-success-600`, `surprised` → `bg-info-600`, `sad` → `bg-brand-300`, `fearful` → `bg-warning-600`, `angry` → `bg-danger-600`, `disgusted` → `bg-brand-800`.
 
 ## Adding a Feature
 

@@ -40,9 +40,45 @@ export interface SessionSummary {
   generatedAt: string
 }
 
+export type EmotionLabel =
+  'neutral' | 'happy' | 'surprised' | 'sad' | 'fearful' | 'angry' | 'disgusted'
+
+export interface EmotionSummary {
+  dominant: string
+  distribution: Record<string, number>
+}
+
+export interface QuestionEmotion {
+  questionPublicId: string
+  orderIndex: number
+  domain: string
+  difficulty: string
+  durationSeconds: number | null
+  emotionSummary: EmotionSummary | null
+}
+
 export interface SessionResult {
   sessionId: string
   /** Backend đặt tên field là số nhiều. */
   scores: SessionScore
   summary: SessionSummary
+  emotionTimeline?: QuestionEmotion[]
 }
+
+export type ScoringJobEventType = 'answer-scored' | 'answer-failed'
+
+export interface ScoringJobEventPayload {
+  sessionId: string
+  overallScore?: number
+  error?: string
+}
+
+export interface ScoringJobEvent {
+  userId: string
+  jobId: string
+  type: ScoringJobEventType
+  payload: ScoringJobEventPayload
+}
+
+export type ScoringStreamConnectionState =
+  'idle' | 'connecting' | 'open' | 'reconnecting' | 'stopped'

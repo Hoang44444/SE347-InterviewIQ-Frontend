@@ -126,7 +126,7 @@ let pendingRefresh: Promise<string | null> | null = null
  * bị xoay sau mỗi lần dùng, gửi lại token cũ thì backend từ chối (và quá 10 giây
  * thì backend coi là token bị lộ, thu hồi mọi phiên của tài khoản).
  */
-function refreshAccessToken(): Promise<string | null> {
+export function refreshAccessToken(): Promise<string | null> {
   if (!pendingRefresh) {
     const usedRefreshToken = storage.get<string>(STORAGE_KEYS.refreshToken)
     pendingRefresh = withRefreshLock(() => requestNewTokens(usedRefreshToken)).finally(() => {

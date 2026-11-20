@@ -3,9 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 import { CheatLogPanel, HistoryResultPanel, HistoryTimeline } from '@/components/history'
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner, Stack } from '@/components/ui'
 import { SESSION_STATUS_LABEL, SESSION_STATUS_TONE } from '@/constants/interview'
+import { SCORING_STREAM_STATUS_LABEL } from '@/constants/scoring'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useInterviewHistoryDetail } from '@/hooks/useInterviewHistoryDetail'
+import { useScoringStream } from '@/hooks/useScoringStream'
 import { useSessionResult } from '@/hooks/useSessionResult'
+import { useToast } from '@/hooks/useToast'
 import { ROUTES } from '@/routes/paths'
 import type { InterviewHistoryDetail } from '@/types/history'
 import { formatDurationLabel } from '@/utils/format'
@@ -14,7 +17,25 @@ export function HistoryDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { detail, isLoading, loadError, isNotFound, reload } = useInterviewHistoryDetail(id)
 
+  const toast = useToast()
+
   useDocumentTitle(detail ? detail.title || 'Buổi phỏng vấn' : 'Chi tiết buổi phỏng vấn')
+
+  const { connectionState } = useScoringStream({
+    enabled: detail?.status === 'SUBMITTED' || detail?.status === 'SCORING',
+    sessionId: detail?.id ?? null,
+    onConnected: reload,
+    onScored: () => {
+      toast.success('Đã có kết quả chấm điểm', 'Bảng điểm và nhận xét đã sẵn sàng.')
+      reload()
+    },
+    onFailed: (error) => {
+      toast.error('Chấm điểm thất bại', error)
+      reload()
+    },
+  })
+
+  const streamStatusLabel = SCORING_STREAM_STATUS_LABEL[connectionState]
 
   /**
    * Chỉ buổi đã hoàn thành mới có kết quả chấm; gọi cho trạng thái khác chỉ nhận
@@ -97,6 +118,7 @@ export function HistoryDetailPage() {
 
       <PageHeader
         title={detail.title || 'Buổi phỏng vấn'}
+        description={streamStatusLabel || undefined}
         actions={
           <Badge tone={SESSION_STATUS_TONE[detail.status]}>
             {SESSION_STATUS_LABEL[detail.status]}

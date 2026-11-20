@@ -393,11 +393,23 @@ export function InterviewRoom({
                       ? 'Chấm điểm thất bại'
                       : 'Đã nộp — đang chấm điểm'}
                 </p>
-                <p className="text-sm text-content-subtle">
-                  {scoring.job?.status === 'COMPLETED'
-                    ? 'Chấm điểm đã hoàn tất. Kết quả điểm chưa được trả về trong trạng thái job.'
-                    : 'Theo dõi tiến độ chấm điểm cho bài đã nộp.'}
-                </p>
+                {scoring.job?.status === 'COMPLETED' ? (
+                  <Stack gap="sm">
+                    <p className="text-sm text-content-subtle">
+                      Chấm điểm đã hoàn tất. Xem bảng điểm, nhận xét chi tiết và biểu đồ biểu cảm.
+                    </p>
+                    <Link
+                      to={ROUTES.historyDetail(id)}
+                      className="inline-flex h-10 items-center justify-center self-start rounded-control bg-brand-600 px-4 text-sm font-medium text-white transition hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                    >
+                      Xem kết quả chi tiết
+                    </Link>
+                  </Stack>
+                ) : (
+                  <p className="text-sm text-content-subtle">
+                    Theo dõi tiến độ chấm điểm cho bài đã nộp.
+                  </p>
+                )}
                 {scoring.error && (
                   <>
                     <p role="alert" className="text-sm text-danger-700">

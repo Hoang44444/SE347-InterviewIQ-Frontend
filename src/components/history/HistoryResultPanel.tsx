@@ -1,24 +1,9 @@
 import { Link } from 'react-router-dom'
 
-import { ScoreValue } from './ScoreValue'
-
+import { ScoringResultView } from '@/components/scoring'
 import { Button, Card, Spinner, Stack } from '@/components/ui'
-import { MAX_SCORE } from '@/constants/history'
 import type { InterviewSessionStatus } from '@/types/interview'
-import type { SessionResult, SessionScore } from '@/types/scoring'
-import { formatScore } from '@/utils/format'
-
-/** Ba mặt điểm backend chấm, ngoài điểm tổng. */
-type BreakdownKey = Extract<
-  keyof SessionScore,
-  'contentScore' | 'relevanceScore' | 'confidenceScore'
->
-
-const BREAKDOWN: { label: string; key: BreakdownKey }[] = [
-  { label: 'Nội dung', key: 'contentScore' },
-  { label: 'Độ liên quan', key: 'relevanceScore' },
-  { label: 'Sự tự tin', key: 'confidenceScore' },
-]
+import type { SessionResult } from '@/types/scoring'
 
 /** Lời nhắc cho từng trạng thái chưa có kết quả. */
 const PENDING_NOTICE: Record<InterviewSessionStatus, { title: string; description: string }> = {
@@ -87,7 +72,7 @@ export function HistoryResultPanel({
             <Spinner size="lg" />
           </div>
         ) : result ? (
-          <ResultBody result={result} />
+          <ScoringResultView result={result} />
         ) : loadError ? (
           <Stack gap="sm">
             <p
@@ -105,68 +90,6 @@ export function HistoryResultPanel({
         )}
       </Stack>
     </Card>
-  )
-}
-
-function ResultBody({ result }: { result: SessionResult }) {
-  const { scores, summary } = result
-
-  return (
-    <Stack gap="lg">
-      <ScoreValue score={scores.overallScore} size="lg" showBar />
-
-      <Stack gap="sm">
-        {BREAKDOWN.map(({ label, key }) => (
-          <div key={key} className="flex items-center justify-between gap-4">
-            <p className="text-sm text-content-muted">{label}</p>
-            <p className="text-sm font-medium text-content tabular-nums">
-              {formatScore(scores[key])}
-              <span className="text-content-subtle">/{MAX_SCORE}</span>
-            </p>
-          </div>
-        ))}
-      </Stack>
-
-      {summary.overallFeedback && (
-        <p className="text-sm text-content-muted">{summary.overallFeedback}</p>
-      )}
-
-      {summary.strengths.length > 0 && (
-        <Stack gap="sm">
-          <h3 className="text-sm font-semibold text-content">Điểm mạnh</h3>
-          {summary.strengths.map((strength, index) => (
-            <div
-              key={`${strength.category}-${index}`}
-              className="rounded-card bg-success-50 p-(--space-sm)"
-            >
-              <p className="text-sm font-medium text-content">{strength.title}</p>
-              <p className="mt-1 text-sm text-content-muted">{strength.description}</p>
-            </div>
-          ))}
-        </Stack>
-      )}
-
-      {summary.improvements.length > 0 && (
-        <Stack gap="sm">
-          <h3 className="text-sm font-semibold text-content">Cần cải thiện</h3>
-          {summary.improvements.map((improvement, index) => (
-            <div
-              key={`${improvement.category}-${index}`}
-              className="rounded-card bg-warning-50 p-(--space-sm)"
-            >
-              <p className="text-sm font-medium text-content">{improvement.title}</p>
-              <p className="mt-1 text-sm text-content-muted">{improvement.description}</p>
-              {improvement.suggestion && (
-                <p className="mt-1 text-sm text-content-muted">
-                  <span aria-hidden>→ </span>
-                  {improvement.suggestion}
-                </p>
-              )}
-            </div>
-          ))}
-        </Stack>
-      )}
-    </Stack>
   )
 }
 
