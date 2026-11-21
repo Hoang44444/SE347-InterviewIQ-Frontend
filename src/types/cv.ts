@@ -57,6 +57,17 @@ export interface Cv extends CvSummary {
   updatedAt: string
 }
 
+/** Vì sao một lần phân tích kết thúc ở FAILED (khớp ParseFailureReason bên backend). */
+export type ParseFailureReason = 'FILE_UNAVAILABLE' | 'FILE_UNREADABLE' | 'NO_TEXT' | 'AI_FAILED'
+
+/**
+ * Kết quả của POST /cvs/:id/parse: CV kèm lý do nếu phân tích hỏng.
+ * failureReason chỉ có trong response này, GET lại sau đó sẽ không còn.
+ */
+export interface CvParseResult extends Cv {
+  failureReason: ParseFailureReason | null
+}
+
 /** Giấy phép upload thẳng lên Cloudinary (POST /cvs/signed-params). */
 export interface CvSignedParams {
   uploadUrl: string
