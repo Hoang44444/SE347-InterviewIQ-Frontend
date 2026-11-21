@@ -20,8 +20,9 @@ export function useCvUpload({ onUploaded }: { onUploaded: (cv: Cv) => void }) {
   const [error, setError] = useState('')
   const abortRef = useRef<AbortController | null>(null)
 
+  /** Truyền replacePublicId để thay file của CV đó thay vì tạo CV mới. */
   const upload = useCallback(
-    async (selected: File) => {
+    async (selected: File, replacePublicId?: string) => {
       if (abortRef.current) return
       const controller = new AbortController()
       abortRef.current = controller
@@ -32,11 +33,14 @@ export function useCvUpload({ onUploaded }: { onUploaded: (cv: Cv) => void }) {
       setProgress(0)
 
       try {
-        const cv = await cvService.upload(selected, {
+        const options = {
           signal: controller.signal,
           onStage: setStage,
           onProgress: setProgress,
-        })
+        }
+        const cv = replacePublicId
+          ? await cvService.replace(replacePublicId, selected, options)
+          : await cvService.upload(selected, options)
         onUploaded(cv)
       } catch (cause) {
         // Người dùng tự bấm Huỷ thì không phải lỗi, không cần báo đỏ.
