@@ -1,3 +1,4 @@
+export { CvConfirmDialog, type CvConfirmDialogProps } from './CvConfirmDialog'
 export { CvDetailPanel, type CvDetailPanelProps } from './CvDetailPanel'
 export { CvDropzone, type CvDropzoneProps } from './CvDropzone'
 export { CvList, type CvListProps } from './CvList'
