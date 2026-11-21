@@ -4,8 +4,13 @@ import { ParsedDataEditor } from './ParsedDataEditor'
 import { ParsedDataView } from './ParsedDataView'
 
 import { Badge, Button, Card, Spinner } from '@/components/ui'
-import { PARSE_STATUS_LABEL, PARSE_STATUS_TONE } from '@/constants/cv'
-import type { Cv, CvParsedData } from '@/types/cv'
+import {
+  PARSE_FAILURE_FALLBACK,
+  PARSE_FAILURE_MESSAGE,
+  PARSE_STATUS_LABEL,
+  PARSE_STATUS_TONE,
+} from '@/constants/cv'
+import type { Cv, CvParsedData, ParseFailureReason } from '@/types/cv'
 import { formatDate, formatFileSize } from '@/utils/format'
 
 export interface CvDetailPanelProps {
@@ -15,8 +20,14 @@ export interface CvDetailPanelProps {
   error: string
   /** Trang này đang gọi phân tích cho CV đang xem. */
   isParsing: boolean
+  /** Lý do lần phân tích hỏng gần nhất; undefined khi không biết (vừa tải lại trang). */
+  failureReason?: ParseFailureReason
+  /** Đang tải file thay thế hoặc đang xoá: khoá các nút thay đổi CV. */
+  isBusy: boolean
   onRetry: () => void
   onParse: () => void
+  onReplace: () => void
+  onDelete: () => void
   /** Hỏi lại trạng thái thật khi CV đang PROCESSING mà không phải do trang này gọi. */
   onRefresh: () => void
   /** Ném lỗi (ApiError) nếu lưu thất bại. */
@@ -26,6 +37,7 @@ export interface CvDetailPanelProps {
 interface DetailBodyProps {
   cv: Cv
   isParsing: boolean
+  failureReason?: ParseFailureReason
   isEditing: boolean
   onParse: () => void
   onRefresh: () => void
@@ -36,6 +48,7 @@ interface DetailBodyProps {
 function DetailBody({
   cv,
   isParsing,
+  failureReason,
   isEditing,
   onParse,
   onRefresh,
@@ -66,7 +79,7 @@ function DetailBody({
           role="alert"
           className="w-full rounded-control bg-danger-50 px-4 py-3 text-sm text-danger-700"
         >
-          Không đọc được nội dung CV. File có thể là ảnh scan hoặc bị khoá bằng mật khẩu.
+          {failureReason ? PARSE_FAILURE_MESSAGE[failureReason] : PARSE_FAILURE_FALLBACK}
         </p>
         <Button onClick={onParse}>Phân tích lại</Button>
       </div>
@@ -101,8 +114,12 @@ export function CvDetailPanel({
   isLoading,
   error,
   isParsing,
+  failureReason,
+  isBusy,
   onRetry,
   onParse,
+  onReplace,
+  onDelete,
   onRefresh,
   onSaveParsedData,
 }: CvDetailPanelProps) {
@@ -164,11 +181,18 @@ export function CvDetailPanel({
           >
             Xem file
           </a>
+          <Button variant="secondary" size="sm" onClick={onReplace} disabled={isBusy || isParsing}>
+            Thay file
+          </Button>
+          <Button variant="danger" size="sm" onClick={onDelete} disabled={isBusy || isParsing}>
+            Xoá
+          </Button>
         </div>
       </div>
       <DetailBody
         cv={cv}
         isParsing={isParsing}
+        failureReason={failureReason}
         isEditing={isEditing}
         onParse={onParse}
         onRefresh={onRefresh}

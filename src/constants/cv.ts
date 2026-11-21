@@ -1,5 +1,5 @@
 import type { BadgeProps } from '@/components/ui'
-import type { ParseStatus } from '@/types/cv'
+import type { ParseFailureReason, ParseStatus } from '@/types/cv'
 
 /**
  * Giới hạn kiểm tra sớm ở FE cho người dùng biết ngay, không phải lớp bảo mật:
@@ -31,3 +31,22 @@ export const PARSE_STATUS_TONE: Record<ParseStatus, NonNullable<BadgeProps['tone
   COMPLETED: 'success',
   FAILED: 'danger',
 }
+
+/** Nói rõ vì sao phân tích hỏng để người dùng biết nên thử lại hay thay file. */
+export const PARSE_FAILURE_MESSAGE: Record<ParseFailureReason, string> = {
+  FILE_UNAVAILABLE: 'Không tìm thấy file CV trên hệ thống lưu trữ. Hãy thay bằng file mới.',
+  FILE_UNREADABLE:
+    'File PDF bị hỏng, bị khoá mật khẩu hoặc dài quá 20 trang. Hãy thay bằng file khác.',
+  NO_TEXT:
+    'File PDF không có chữ để đọc (thường là ảnh scan). Hãy thay bằng bản PDF chọn được chữ.',
+  AI_FAILED: 'Hệ thống chưa đọc được CV lúc này. Hãy thử phân tích lại.',
+}
+
+/** Dùng khi không biết lý do, ví dụ vừa tải lại trang (backend không lưu lý do). */
+export const PARSE_FAILURE_FALLBACK =
+  'Không đọc được nội dung CV. File có thể là ảnh scan hoặc bị khoá bằng mật khẩu.'
+
+export const CV_LIMIT_MESSAGE = 'Bạn đã đạt số CV tối đa. Hãy xoá bớt một CV cũ rồi tải lại.'
+
+export const CV_BUSY_MESSAGE =
+  'CV đang được phân tích hoặc vừa bị thay đổi. Hãy thử lại sau ít phút.'

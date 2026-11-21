@@ -3,6 +3,8 @@ import axios from 'axios'
 import { apiClient } from './apiClient'
 
 import {
+  CV_BUSY_MESSAGE,
+  CV_LIMIT_MESSAGE,
   CV_MIME_TYPE,
   CV_PARSE_TIMEOUT,
   CV_UPLOAD_TIMEOUT,
@@ -14,6 +16,7 @@ import type {
   CreateCvPayload,
   Cv,
   CvParsedData,
+  CvParseResult,
   CvSignedParams,
   CvSummary,
   CvUploadOptions,
@@ -31,6 +34,16 @@ function validateCvFile(file: File): ApiError | null {
   if (file.size > MAX_CV_SIZE_BYTES) return clientError('File vượt quá 5 MB')
   if (file.name.length > MAX_CV_FILE_NAME_LENGTH) return clientError('Tên file quá dài')
   return null
+}
+
+/** Đổi lỗi theo mã HTTP của backend (tiếng Anh) thành câu tiếng Việt cho người dùng. */
+async function withMessages<T>(request: Promise<T>, messages: Record<number, string>): Promise<T> {
+  try {
+    return await request
+  } catch (error) {
+    const message = messages[(error as ApiError).status]
+    throw message ? { ...(error as ApiError), message } : error
+  }
 }
 
 export const cvService = {
@@ -87,11 +100,8 @@ export const cvService = {
     return data.data
   },
 
-  /**
-   * Gộp cả 3 bước: kiểm tra file → xin chữ ký → upload → lưu.
-   * Trang upload chỉ cần gọi hàm này.
-   */
-  async upload(file: File, options: CvUploadOptions = {}): Promise<Cv> {
+  /** Bước 1 + 2: kiểm tra file, xin chữ ký rồi đưa file lên Cloudinary. Trả về id file ở Cloudinary. */
+  async uploadFile(file: File, options: CvUploadOptions = {}): Promise<string> {
     const invalid = validateCvFile(file)
     if (invalid) throw invalid
 
@@ -100,11 +110,45 @@ export const cvService = {
 
     options.onStage?.('uploading')
     await cvService.uploadToCloudinary(file, params, options)
+    return params.cloudinaryPublicId
+  },
+
+  /**
+   * Gộp cả 3 bước: kiểm tra file → xin chữ ký → upload → lưu.
+   * Trang upload chỉ cần gọi hàm này. 429 = đã đủ số CV cho phép.
+   */
+  async upload(file: File, options: CvUploadOptions = {}): Promise<Cv> {
+    const cloudinaryPublicId = await cvService.uploadFile(file, options)
 
     options.onStage?.('saving')
-    return cvService.create({
-      fileName: file.name,
-      cloudinaryPublicId: params.cloudinaryPublicId,
+    return withMessages(cvService.create({ fileName: file.name, cloudinaryPublicId }), {
+      429: CV_LIMIT_MESSAGE,
+    })
+  },
+
+  /**
+   * Thay file của một CV có sẵn: cùng 2 bước đầu, bước cuối là PUT thay vì tạo mới.
+   * Kết quả phân tích cũ bị xoá, CV về PENDING. 409 = đang phân tích.
+   */
+  async replace(publicId: string, file: File, options: CvUploadOptions = {}): Promise<Cv> {
+    const cloudinaryPublicId = await cvService.uploadFile(file, options)
+
+    options.onStage?.('saving')
+    return withMessages(
+      apiClient
+        .put<ApiSuccessResponse<Cv>>(`/cvs/${encodeURIComponent(publicId)}/file`, {
+          fileName: file.name,
+          cloudinaryPublicId,
+        })
+        .then(({ data }) => data.data),
+      { 409: CV_BUSY_MESSAGE },
+    )
+  },
+
+  /** Xoá CV và file trên Cloudinary. 404 = CV không còn, 409 = đang phân tích. */
+  async remove(publicId: string): Promise<void> {
+    await withMessages(apiClient.delete(`/cvs/${encodeURIComponent(publicId)}`), {
+      409: CV_BUSY_MESSAGE,
     })
   },
 
@@ -126,8 +170,8 @@ export const cvService = {
    * Nhờ backend đọc PDF và điền parsedData. Phân tích hỏng vẫn trả 200 với parseStatus
    * FAILED; 404 = không phải CV của mình, 409 = đã phân tích hoặc đang được phân tích.
    */
-  async parse(publicId: string): Promise<Cv> {
-    const { data } = await apiClient.post<ApiSuccessResponse<Cv>>(
+  async parse(publicId: string): Promise<CvParseResult> {
+    const { data } = await apiClient.post<ApiSuccessResponse<CvParseResult>>(
       `/cvs/${encodeURIComponent(publicId)}/parse`,
       undefined,
       { timeout: CV_PARSE_TIMEOUT },

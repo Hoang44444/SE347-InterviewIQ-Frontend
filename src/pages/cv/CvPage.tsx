@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 
-import { CvDetailPanel, CvDropzone, CvList, CvUploadProgress } from '@/components/cv'
+import {
+  CvConfirmDialog,
+  CvDetailPanel,
+  CvDropzone,
+  CvList,
+  CvUploadProgress,
+} from '@/components/cv'
 import { EmptyState, PageHeader, Spinner, Stack, Button } from '@/components/ui'
+import { CV_MIME_TYPE } from '@/constants/cv'
 import { useCvParse } from '@/hooks/useCvParse'
 import { useCvUpload } from '@/hooks/useCvUpload'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
@@ -22,6 +29,10 @@ export function CvPage() {
   const [details, setDetails] = useState<Record<string, Cv>>({})
   const [detailError, setDetailError] = useState<{ id: string; message: string } | null>(null)
   const [retryCount, setRetryCount] = useState(0)
+  const [confirm, setConfirm] = useState<'delete' | 'replace' | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const replaceInputRef = useRef<HTMLInputElement>(null)
 
   // Không setState đồng bộ ở đây: effect bên dưới gọi hàm này, chỉ được set trong then/catch.
   const fetchList = useCallback(
@@ -74,17 +85,23 @@ export function CvPage() {
     setDetails((previous) => ({ ...previous, [cv.publicId]: cv }))
   }, [])
 
-  const { parsingIds, parse } = useCvParse({ onChanged: applyCv })
+  const { parsingIds, failureReasons, parse } = useCvParse({ onChanged: applyCv })
 
+  // Thay file trả về CV đã có trong danh sách: cập nhật tại chỗ thay vì thêm một dòng mới.
   const handleUploaded = useCallback(
     (cv: Cv) => {
-      setCvs((previous) => [cv, ...previous])
+      const isReplacement = cvs.some((item) => item.publicId === cv.publicId)
+      setCvs((previous) =>
+        isReplacement
+          ? previous.map((item) => (item.publicId === cv.publicId ? cv : item))
+          : [cv, ...previous],
+      )
       setDetails((previous) => ({ ...previous, [cv.publicId]: cv }))
       setSelectedId(cv.publicId)
-      toast.success('Đã tải CV lên', cv.fileName)
+      toast.success(isReplacement ? 'Đã thay file CV' : 'Đã tải CV lên', cv.fileName)
       void parse(cv.publicId)
     },
-    [toast, parse],
+    [cvs, toast, parse],
   )
   const upload = useCvUpload({ onUploaded: handleUploaded })
 
@@ -106,6 +123,57 @@ export function CvPage() {
     },
     [applyCv],
   )
+
+  const removeSelectedCv = useCallback(async () => {
+    if (!selectedId) return
+    setIsDeleting(true)
+    setDeleteError('')
+    try {
+      await cvService.remove(selectedId)
+    } catch (cause) {
+      // 404: CV đã không còn trên server, cứ bỏ khỏi màn hình như vừa xoá xong.
+      if ((cause as ApiError).status !== 404) {
+        setDeleteError((cause as ApiError).message || 'Không xoá được CV, hãy thử lại')
+        setIsDeleting(false)
+        return
+      }
+    }
+
+    const name =
+      details[selectedId]?.fileName ?? cvs.find((cv) => cv.publicId === selectedId)?.fileName
+    const remaining = cvs.filter((cv) => cv.publicId !== selectedId)
+    setCvs(remaining)
+    setDetails((previous) => {
+      const { [selectedId]: _removed, ...rest } = previous
+      return rest
+    })
+    setSelectedId((remaining.find((cv) => cv.isActive) ?? remaining[0])?.publicId ?? null)
+    toast.success('Đã xoá CV', name)
+    setConfirm(null)
+    setIsDeleting(false)
+  }, [selectedId, cvs, details, toast])
+
+  function askDelete() {
+    setDeleteError('')
+    setConfirm('delete')
+  }
+
+  // Thay file làm mất kết quả phân tích (kể cả phần đã chỉnh tay), nên chỉ hỏi lại khi có thứ để mất.
+  function askReplace() {
+    if (selectedDetail?.parseStatus === 'COMPLETED') setConfirm('replace')
+    else replaceInputRef.current?.click()
+  }
+
+  function pickReplacement() {
+    setConfirm(null)
+    replaceInputRef.current?.click()
+  }
+
+  function handleReplacementChosen(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (file && selectedId) void upload.upload(file, selectedId)
+  }
 
   const parsing = new Set(parsingIds)
   const shownCvs = cvs.map((cv) =>
@@ -169,6 +237,10 @@ export function CvPage() {
               isLoading={isLoadingDetail}
               error={hasDetailError ? detailError.message : ''}
               isParsing={!!selectedId && parsing.has(selectedId)}
+              failureReason={selectedId ? failureReasons[selectedId] : undefined}
+              isBusy={upload.isUploading || isDeleting}
+              onReplace={askReplace}
+              onDelete={askDelete}
               onRetry={() => {
                 setDetailError(null)
                 setRetryCount((count) => count + 1)
@@ -180,6 +252,48 @@ export function CvPage() {
           </div>
         </div>
       )}
+
+      <input
+        ref={replaceInputRef}
+        type="file"
+        accept={CV_MIME_TYPE}
+        className="hidden"
+        tabIndex={-1}
+        aria-label="Chọn file CV thay thế"
+        onChange={handleReplacementChosen}
+      />
+
+      <CvConfirmDialog
+        open={confirm === 'delete'}
+        title="Xoá CV này?"
+        confirmLabel="Xoá CV"
+        tone="danger"
+        isLoading={isDeleting}
+        error={deleteError}
+        onConfirm={() => void removeSelectedCv()}
+        onClose={() => setConfirm(null)}
+      >
+        <p>
+          <strong className="font-semibold wrap-anywhere text-content">
+            {selectedDetail?.fileName}
+          </strong>{' '}
+          sẽ bị xoá cùng file PDF đã tải lên. Không thể hoàn tác.
+        </p>
+        <p>Các buổi phỏng vấn đã tạo từ CV này vẫn được giữ nguyên.</p>
+      </CvConfirmDialog>
+
+      <CvConfirmDialog
+        open={confirm === 'replace'}
+        title="Thay file CV?"
+        confirmLabel="Chọn file mới"
+        onConfirm={pickReplacement}
+        onClose={() => setConfirm(null)}
+      >
+        <p>
+          Kết quả phân tích và các chỉnh sửa của bạn sẽ bị xoá. CV sẽ được phân tích lại từ file
+          mới.
+        </p>
+      </CvConfirmDialog>
     </Stack>
   )
 }

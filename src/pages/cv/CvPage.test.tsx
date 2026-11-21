@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import { CvPage } from './CvPage'
@@ -6,7 +6,7 @@ import { CvPage } from './CvPage'
 import { ToastProvider } from '@/contexts/ToastProvider'
 import { apiClient } from '@/services/apiClient'
 import { cvService } from '@/services/cvService'
-import type { Cv, CvUploadOptions } from '@/types/cv'
+import type { Cv, CvParseResult, CvUploadOptions } from '@/types/cv'
 
 const parsedData = {
   summary: 'Frontend developer 2 năm kinh nghiệm.',
@@ -133,8 +133,14 @@ const uploaded = makeCv({
   isActive: false,
   parsedData: null,
 })
-const parsedUploaded = makeCv({ ...uploaded, parseStatus: 'COMPLETED', parsedData })
-const failedUploaded = makeCv({ ...uploaded, parseStatus: 'FAILED', parsedData: null })
+const parsedUploaded: CvParseResult = {
+  ...makeCv({ ...uploaded, parseStatus: 'COMPLETED', parsedData }),
+  failureReason: null,
+}
+const failedUploaded: CvParseResult = {
+  ...makeCv({ ...uploaded, parseStatus: 'FAILED', parsedData: null }),
+  failureReason: 'AI_FAILED',
+}
 
 test('a successful upload puts the new CV first, selects it and parses it', async () => {
   mockApi([original])
@@ -155,8 +161,10 @@ test('a successful upload puts the new CV first, selects it and parses it', asyn
 test('shows "Đang phân tích" in the panel and in the list while the parse request runs', async () => {
   mockApi([original])
   vi.spyOn(cvService, 'upload').mockResolvedValue(uploaded)
-  let finish: (cv: Cv) => void = () => {}
-  vi.spyOn(cvService, 'parse').mockReturnValue(new Promise<Cv>((resolve) => (finish = resolve)))
+  let finish: (cv: CvParseResult) => void = () => {}
+  vi.spyOn(cvService, 'parse').mockReturnValue(
+    new Promise<CvParseResult>((resolve) => (finish = resolve)),
+  )
   const { container } = renderPage()
   await screen.findByRole('heading', { name: 'cv-chinh.pdf' })
 
@@ -199,7 +207,7 @@ test('a CV that was never parsed offers "Phân tích ngay"', async () => {
   mockApi([original, pending])
   const parse = vi
     .spyOn(cvService, 'parse')
-    .mockResolvedValue({ ...pending, parseStatus: 'COMPLETED', parsedData })
+    .mockResolvedValue({ ...pending, parseStatus: 'COMPLETED', parsedData, failureReason: null })
   renderPage()
   await screen.findByRole('heading', { name: 'cv-chinh.pdf' })
 
@@ -345,4 +353,153 @@ test('shows the backend error when the upload fails', async () => {
   chooseFile(container, pdf)
 
   expect(await screen.findByRole('alert')).toHaveTextContent('CV này đã được lưu')
+})
+
+test('a parse that fails says why: a scanned PDF asks for another file', async () => {
+  mockApi([original])
+  vi.spyOn(cvService, 'upload').mockResolvedValue(uploaded)
+  vi.spyOn(cvService, 'parse').mockResolvedValue({ ...failedUploaded, failureReason: 'NO_TEXT' })
+  const { container } = renderPage()
+  await screen.findByRole('heading', { name: 'cv-chinh.pdf' })
+
+  chooseFile(container, pdf)
+
+  expect(
+    await screen.findByText(/ảnh scan\)\. Hãy thay bằng bản PDF chọn được chữ/),
+  ).toBeInTheDocument()
+})
+
+test('a parse that fails because of the AI suggests trying again', async () => {
+  mockApi([original])
+  vi.spyOn(cvService, 'upload').mockResolvedValue(uploaded)
+  vi.spyOn(cvService, 'parse').mockResolvedValue(failedUploaded)
+  const { container } = renderPage()
+  await screen.findByRole('heading', { name: 'cv-chinh.pdf' })
+
+  chooseFile(container, pdf)
+
+  expect(await screen.findByText(/Hãy thử phân tích lại/)).toBeInTheDocument()
+})
+
+test('deleting: asks first, then removes the CV and opens the next one', async () => {
+  mockApi([original, failed])
+  const remove = vi.spyOn(cvService, 'remove').mockResolvedValue()
+  renderPage()
+  await screen.findByRole('heading', { name: 'cv-chinh.pdf' })
+
+  fireEvent.click(screen.getByRole('button', { name: 'Xoá' }))
+
+  const dialog = await screen.findByRole('dialog', { name: 'Xoá CV này?' })
+  expect(remove).not.toHaveBeenCalled()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Xoá CV' }))
+
+  await waitFor(() => expect(remove).toHaveBeenCalledWith(original.publicId))
+  expect(await screen.findByText('Đã xoá CV')).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'cv-scan.pdf' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /cv-chinh\.pdf/ })).not.toBeInTheDocument()
+})
+
+test('deleting: cancel keeps the CV and never calls the API', async () => {
+  mockApi([original])
+  const remove = vi.spyOn(cvService, 'remove').mockResolvedValue()
+  renderPage()
+  await screen.findByRole('heading', { name: 'cv-chinh.pdf' })
+
+  fireEvent.click(screen.getByRole('button', { name: 'Xoá' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Xoá CV này?' })
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Huỷ' }))
+
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(remove).not.toHaveBeenCalled()
+  expect(screen.getByRole('heading', { name: 'cv-chinh.pdf' })).toBeInTheDocument()
+})
+
+test('deleting: a failure is shown in the dialog and the CV stays', async () => {
+  mockApi([original])
+  vi.spyOn(cvService, 'remove').mockRejectedValue({
+    status: 500,
+    message: 'Failed to delete the CV file',
+  })
+  renderPage()
+  await screen.findByRole('heading', { name: 'cv-chinh.pdf' })
+
+  fireEvent.click(screen.getByRole('button', { name: 'Xoá' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Xoá CV này?' })
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Xoá CV' }))
+
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Failed to delete the CV file')
+  expect(screen.getByRole('heading', { name: 'cv-chinh.pdf' })).toBeInTheDocument()
+})
+
+test('deleting: a CV the server no longer has just disappears (404)', async () => {
+  mockApi([original])
+  vi.spyOn(cvService, 'remove').mockRejectedValue({ status: 404, message: 'CV not found' })
+  renderPage()
+  await screen.findByRole('heading', { name: 'cv-chinh.pdf' })
+
+  fireEvent.click(screen.getByRole('button', { name: 'Xoá' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Xoá CV này?' })
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Xoá CV' }))
+
+  expect(await screen.findByText('Bạn chưa có CV nào')).toBeInTheDocument()
+})
+
+test('replacing a parsed CV: warns first, then swaps the file in place and parses it again', async () => {
+  mockApi([original, failed])
+  const replace = vi
+    .spyOn(cvService, 'replace')
+    .mockResolvedValue(makeCv({ fileName: 'cv-moi.pdf', parseStatus: 'PENDING', parsedData: null }))
+  const parse = vi.spyOn(cvService, 'parse').mockResolvedValue({
+    ...makeCv({ fileName: 'cv-moi.pdf' }),
+    failureReason: null,
+  })
+  renderPage()
+  await screen.findByRole('heading', { name: 'cv-chinh.pdf' })
+
+  fireEvent.click(screen.getByRole('button', { name: 'Thay file' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Thay file CV?' })
+  expect(dialog).toHaveTextContent('Kết quả phân tích và các chỉnh sửa của bạn sẽ bị xoá')
+  expect(replace).not.toHaveBeenCalled()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Chọn file mới' }))
+  fireEvent.change(screen.getByLabelText('Chọn file CV thay thế'), { target: { files: [pdf] } })
+
+  await waitFor(() =>
+    expect(replace).toHaveBeenCalledWith(original.publicId, pdf, expect.anything()),
+  )
+  expect(await screen.findByRole('heading', { name: 'cv-moi.pdf' })).toBeInTheDocument()
+  expect(await screen.findByText('Đã thay file CV')).toBeInTheDocument()
+  expect(parse).toHaveBeenCalledWith(original.publicId)
+  // Cùng một CV được cập nhật tại chỗ, danh sách không có thêm dòng.
+  expect(screen.getAllByRole('button', { name: /\.pdf/ })).toHaveLength(2)
+  expect(screen.queryByRole('button', { name: /cv-chinh\.pdf/ })).not.toBeInTheDocument()
+})
+
+test('replacing a CV that has nothing to lose opens the file picker without asking', async () => {
+  mockApi([failed])
+  renderPage()
+  await screen.findByRole('heading', { name: 'cv-scan.pdf' })
+  const pick = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+
+  fireEvent.click(screen.getByRole('button', { name: 'Thay file' }))
+
+  expect(pick).toHaveBeenCalledTimes(1)
+  expect(screen.queryByRole('dialog', { name: 'Thay file CV?' })).not.toBeInTheDocument()
+})
+
+test('a replace that is refused shows the backend message and keeps the CV', async () => {
+  mockApi([original])
+  vi.spyOn(cvService, 'replace').mockRejectedValue({
+    status: 409,
+    message: 'CV đang được phân tích hoặc vừa bị thay đổi. Hãy thử lại sau ít phút.',
+  })
+  renderPage()
+  await screen.findByRole('heading', { name: 'cv-chinh.pdf' })
+
+  fireEvent.click(screen.getByRole('button', { name: 'Thay file' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Thay file CV?' })
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Chọn file mới' }))
+  fireEvent.change(screen.getByLabelText('Chọn file CV thay thế'), { target: { files: [pdf] } })
+
+  expect(await screen.findByText(/vừa bị thay đổi/)).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'cv-chinh.pdf' })).toBeInTheDocument()
 })

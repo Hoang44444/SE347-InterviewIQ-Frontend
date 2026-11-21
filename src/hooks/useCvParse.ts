@@ -3,15 +3,17 @@ import { useCallback, useRef, useState } from 'react'
 import { useToast } from '@/hooks/useToast'
 import { cvService } from '@/services/cvService'
 import type { ApiError } from '@/types/api'
-import type { Cv } from '@/types/cv'
+import type { Cv, ParseFailureReason } from '@/types/cv'
 
 /**
  * Gọi phân tích CV và nhớ CV nào đang được phân tích để UI hiện "Đang phân tích".
- * Một CV chỉ chạy một lần phân tích tại một thời điểm.
+ * Một CV chỉ chạy một lần phân tích tại một thời điểm. Cũng nhớ lý do của lần phân tích
+ * hỏng gần nhất (backend chỉ báo lý do ngay trong response, tải lại trang là mất).
  */
 export function useCvParse({ onChanged }: { onChanged: (cv: Cv) => void }) {
   const toast = useToast()
   const [parsingIds, setParsingIds] = useState<string[]>([])
+  const [failureReasons, setFailureReasons] = useState<Record<string, ParseFailureReason>>({})
   const inFlight = useRef(new Set<string>())
 
   const parse = useCallback(
@@ -21,8 +23,12 @@ export function useCvParse({ onChanged }: { onChanged: (cv: Cv) => void }) {
       setParsingIds((previous) => [...previous, publicId])
 
       try {
-        const cv = await cvService.parse(publicId)
+        const { failureReason, ...cv } = await cvService.parse(publicId)
         onChanged(cv)
+        setFailureReasons((previous) => {
+          const { [publicId]: _removed, ...rest } = previous
+          return failureReason ? { ...rest, [publicId]: failureReason } : rest
+        })
         if (cv.parseStatus === 'COMPLETED') {
           toast.success('Đã phân tích CV', cv.fileName)
         } else {
@@ -44,5 +50,5 @@ export function useCvParse({ onChanged }: { onChanged: (cv: Cv) => void }) {
     [onChanged, toast],
   )
 
-  return { parsingIds, parse }
+  return { parsingIds, failureReasons, parse }
 }
