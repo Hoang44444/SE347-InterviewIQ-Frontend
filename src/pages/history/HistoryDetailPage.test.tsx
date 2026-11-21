@@ -1,15 +1,32 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import type { InternalAxiosRequestConfig } from 'axios'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { afterEach, expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { HistoryDetailPage } from './HistoryDetailPage'
 
 import { STORAGE_KEYS } from '@/constants'
+import { ToastProvider } from '@/contexts/ToastProvider'
 import { apiClient } from '@/services/apiClient'
+import { openScoringStream, type OpenScoringStreamOptions } from '@/services/scoringStreamService'
 import type { InterviewHistoryDetail } from '@/types/history'
 import type { SessionResult } from '@/types/scoring'
 import { storage } from '@/utils/storage'
+
+vi.mock('@/services/scoringStreamService', () => ({
+  openScoringStream: vi.fn(),
+}))
+
+let capturedStreamOptions: OpenScoringStreamOptions | undefined
+
+beforeEach(() => {
+  capturedStreamOptions = undefined
+  vi.mocked(openScoringStream).mockReset()
+  vi.mocked(openScoringStream).mockImplementation((options) => {
+    capturedStreamOptions = options
+    return new Promise(() => {})
+  })
+})
 
 const sessionId = '3f1c2b9e-8a4d-4f6b-9c1e-2d7a5b0e4f11'
 
@@ -116,11 +133,13 @@ function setup(id: string, backend: Backend = {}) {
   }
 
   render(
-    <MemoryRouter initialEntries={[`/history/${id}`]}>
-      <Routes>
-        <Route path="/history/:id" element={<HistoryDetailPage />} />
-      </Routes>
-    </MemoryRouter>,
+    <ToastProvider>
+      <MemoryRouter initialEntries={[`/history/${id}`]}>
+        <Routes>
+          <Route path="/history/:id" element={<HistoryDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
   )
   return urls
 }
@@ -220,4 +239,28 @@ test('buổi không bị gắn cờ không hiện khối cảnh báo', async () 
 
   await screen.findByText('nguyen-van-a-cv.pdf')
   expect(screen.queryByText('Cảnh báo trong buổi')).not.toBeInTheDocument()
+})
+
+test('nhận sự kiện SSE answer-scored thì bắn toast và tải kết quả mới', async () => {
+  let currentStatus: InterviewHistoryDetail['status'] = 'SCORING'
+  setup(sessionId, {
+    detail: () => ({ ...detail, status: currentStatus }),
+    result: () => result,
+  })
+
+  expect(await screen.findByText('Hệ thống đang chấm bài')).toBeInTheDocument()
+  expect(openScoringStream).toHaveBeenCalledTimes(1)
+
+  currentStatus = 'COMPLETED'
+  act(() => {
+    capturedStreamOptions?.onEvent({
+      userId: 'user-1',
+      jobId: 'job-1',
+      type: 'answer-scored',
+      payload: { sessionId, overallScore: 7.4 },
+    })
+  })
+
+  expect(await screen.findByText('Đã có kết quả chấm điểm')).toBeInTheDocument()
+  expect(await screen.findByText('7,4')).toBeInTheDocument()
 })
