@@ -6,6 +6,7 @@ import {
 } from '@/constants/questionBank'
 import type { QuestionDifficulty, QuestionDomain } from '@/types/interview'
 import type { BankFilter } from '@/types/questionBank'
+import { cn } from '@/utils/cn'
 
 export interface BankFiltersProps {
   filter: BankFilter
@@ -18,6 +19,8 @@ export interface BankFiltersProps {
   canClear: boolean
   /** Tiền tố id để hai bộ lọc cùng xuất hiện trên một trang không trùng id. */
   idPrefix?: string
+  /** Bố cục hai cột cho chỗ hẹp như hộp chọn câu. */
+  compact?: boolean
 }
 
 /**
@@ -33,9 +36,17 @@ export function BankFilters({
   onClear,
   canClear,
   idPrefix = 'bank',
+  compact = false,
 }: BankFiltersProps) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_2fr_auto] lg:items-start">
+    <div
+      className={cn(
+        'grid gap-3',
+        compact
+          ? 'grid-cols-2 items-start'
+          : 'sm:grid-cols-2 lg:grid-cols-[1fr_1fr_2fr_auto] lg:items-start',
+      )}
+    >
       <Select
         id={`${idPrefix}-domain`}
         label="Lĩnh vực"
@@ -50,17 +61,19 @@ export function BankFilters({
         value={filter.difficulty}
         onChange={(event) => onDifficultyChange(event.target.value as QuestionDifficulty | '')}
       />
-      <Input
-        id={`${idPrefix}-search`}
-        type="search"
-        label="Tìm trong nội dung"
-        placeholder="Nhập từ khoá…"
-        maxLength={BANK_SEARCH_MAX_LENGTH}
-        value={searchText}
-        onChange={(event) => onSearchChange(event.target.value)}
-      />
+      <div className={cn(compact && 'col-span-2')}>
+        <Input
+          id={`${idPrefix}-search`}
+          type="search"
+          label="Tìm trong nội dung"
+          placeholder="Nhập từ khoá…"
+          maxLength={BANK_SEARCH_MAX_LENGTH}
+          value={searchText}
+          onChange={(event) => onSearchChange(event.target.value)}
+        />
+      </div>
       {/* Đệm trên cho thẳng hàng với ô nhập, vì ba ô kia có nhãn ở trên. */}
-      <Stack gap="xs" className="lg:pt-6">
+      <Stack gap="xs" className={cn(compact ? 'col-span-2' : 'lg:pt-6')}>
         <Button variant="secondary" onClick={onClear} disabled={!canClear}>
           Xoá lọc
         </Button>

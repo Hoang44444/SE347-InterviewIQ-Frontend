@@ -105,6 +105,7 @@ function PickerContent({
     <Stack gap="md">
       <BankFilters
         idPrefix="picker"
+        compact
         filter={filter}
         searchText={bank.searchText}
         onDomainChange={bank.setDomain}
