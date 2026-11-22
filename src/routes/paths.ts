@@ -8,6 +8,7 @@ export const ROUTES = {
   cvs: '/cvs',
   interviews: '/interviews',
   history: '/history',
+  questionBank: '/question-bank',
   historyDetail: (id: string) => `/history/${id}`,
   interviewRoom: (id: string) => `/interviews/${id}`,
   devInterviewRoom: '/dev/interview-room',
