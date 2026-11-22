@@ -8,10 +8,12 @@ import type {
   Answer,
   CreateInterviewSessionPayload,
   CreateInterviewSessionResult,
+  GenerateQuestionsOptions,
   Interview,
   InterviewSession,
   StartInterviewSessionResult,
   Question,
+  RegenerateQuestionOptions,
   InterviewRecordingSignedParams,
   SaveAnswerPayload,
   SessionQuestions,
@@ -19,6 +21,12 @@ import type {
   SubmitInterviewSessionResult,
   SubmitInterviewSessionPayload,
 } from '@/types/interview'
+
+/** Bỏ trường undefined; không còn trường nào thì không gửi body. */
+function toOptionalBody<T extends object>(options: T): Partial<T> | undefined {
+  const entries = Object.entries(options).filter(([, value]) => value !== undefined)
+  return entries.length === 0 ? undefined : (Object.fromEntries(entries) as Partial<T>)
+}
 
 export const interviewService = {
   async listSessions(pageNumber = 1, pageSize = 20): Promise<PageResult<InterviewSession>> {
@@ -49,13 +57,33 @@ export const interviewService = {
 
   /**
    * Sinh bộ câu hỏi cho phiên CREATED; gọi lại sẽ thay toàn bộ bộ cũ.
-   * Backend chạy đồng bộ tới ~45 giây nên dùng timeout riêng. Không truyền
-   * `count` thì không gửi body và backend dùng mặc định 5.
+   * Backend chạy đồng bộ tới ~45 giây nên dùng timeout riêng. Trường nào bỏ
+   * trống thì không gửi; không có trường nào thì không gửi body.
    */
-  async generateQuestions(sessionPublicId: string, count?: number): Promise<SessionQuestions> {
+  async generateQuestions(
+    sessionPublicId: string,
+    options: GenerateQuestionsOptions = {},
+  ): Promise<SessionQuestions> {
     const { data } = await apiClient.post<ApiSuccessResponse<SessionQuestions>>(
       `/interview-session/${sessionPublicId}/questions/generate`,
-      count === undefined ? undefined : { count },
+      toOptionalBody(options),
+      { timeout: GENERATE_QUESTIONS_TIMEOUT },
+    )
+    return data.data
+  },
+
+  /**
+   * Viết lại một câu tại chỗ (publicId và orderIndex giữ nguyên) và trả về cả
+   * bộ đã cập nhật. Bỏ trống `domain`/`difficulty` thì giữ giá trị của câu cũ.
+   */
+  async regenerateQuestion(
+    sessionPublicId: string,
+    questionPublicId: string,
+    options: RegenerateQuestionOptions = {},
+  ): Promise<SessionQuestions> {
+    const { data } = await apiClient.post<ApiSuccessResponse<SessionQuestions>>(
+      `/interview-session/${sessionPublicId}/questions/${questionPublicId}/regenerate`,
+      toOptionalBody(options),
       { timeout: GENERATE_QUESTIONS_TIMEOUT },
     )
     return data.data

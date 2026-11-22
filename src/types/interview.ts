@@ -169,3 +169,14 @@ export interface InterviewRoomLocationState {
   createdSession?: CreatedInterviewSession
   session?: InterviewSession
 }
+
+/** Tuỳ chọn khi sinh cả bộ; trường bỏ trống thì không gửi lên backend. */
+export interface GenerateQuestionsOptions {
+  /** 3 đến 10, mặc định 5 ở backend. */
+  count?: number
+  domain?: QuestionDomain
+  difficulty?: QuestionDifficulty
+}
+
+/** Tuỳ chọn khi sinh lại một câu; bỏ trống thì giữ giá trị của câu cũ. */
+export type RegenerateQuestionOptions = Pick<GenerateQuestionsOptions, 'domain' | 'difficulty'>
