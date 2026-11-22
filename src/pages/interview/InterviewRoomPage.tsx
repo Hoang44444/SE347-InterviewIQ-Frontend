@@ -25,6 +25,7 @@ import { useAnswerSubmission } from '@/hooks/useAnswerSubmission'
 import { useSessionSubmission } from '@/hooks/useSessionSubmission'
 import { useScoringJob } from '@/hooks/useScoringJob'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { useEmotionCollector } from '@/hooks/useEmotionCollector'
 import { useIntegrityMonitor } from '@/hooks/useIntegrityMonitor'
 import { useInterviewRecorder } from '@/hooks/useInterviewRecorder'
 import { useToast } from '@/hooks/useToast'
@@ -45,6 +46,7 @@ const LOBBY_NOTES = [
   'Đồng hồ chỉ bắt đầu chạy khi bạn bấm Bắt đầu phỏng vấn.',
   'Bản ghi chưa nộp sẽ mất nếu tải lại hoặc rời trang.',
   'Trong lúc phỏng vấn, hệ thống ghi nhận rời tab, thoát toàn màn hình và phân tích hình camera ngay trên máy bạn (không có mặt, nhiều người, nhìn đi chỗ khác) để người xem xét. Hình không bị gửi đi để phân tích; chỉ loại và thời điểm cảnh báo được lưu vào lịch sử của bạn.',
+  'Máy bạn cũng tính một bản tóm tắt nét mặt cho mỗi câu (tỉ lệ thời gian tích cực, bình thản, ngạc nhiên và mức nhìn đi chỗ khác) gửi kèm câu trả lời để hỗ trợ chấm điểm sự tự tin. Chỉ có các con số, không có hình ảnh; đây chỉ là tín hiệu tham khảo.',
 ]
 
 export function InterviewRoomPage() {
@@ -136,12 +138,18 @@ export function InterviewRoom({
 
   const currentQuestion = questions[currentIndex]
   const currentDraft = currentQuestion ? (drafts[currentQuestion.id] ?? '') : ''
+  // Dùng chung detector của giám sát gian lận: không nạp model nhận diện mặt lần hai.
+  const emotion = useEmotionCollector({
+    questionId: currentQuestion?.id,
+    recording: recorder.status === 'recording',
+  })
   const integrity = useIntegrityMonitor({
     enabled: isStarted && !isFinished,
     stream: recorder.stream,
     questionId: currentQuestion?.id,
     sessionId: id,
     cheatLogs: service.cheatLogs,
+    onObservation: emotion.onObservation,
   })
   const violationCount = integrity.summary?.totalCount ?? integrity.events.length
   const answeredIds = useMemo(() => new Set(Object.keys(savedAnswers)), [savedAnswers])
@@ -249,6 +257,8 @@ export function InterviewRoom({
         currentQuestion.id,
         currentDraft,
         finalized ?? recorder.recordings[currentQuestion.id],
+        // Tính sau khi đã dừng ghi để gồm đủ mẫu; null khi không đủ dữ liệu đáng tin.
+        emotion.summarize(currentQuestion.id),
       )
       if (!activeRef.current || !answer) return
       setAnswerDurations((previous) => ({ ...previous, [currentQuestion.id]: answerSeconds }))

@@ -19,6 +19,8 @@ export async function createFaceDetector(): Promise<FaceDetector> {
     runningMode: 'VIDEO' as const,
     numFaces: 2,
     outputFacialTransformationMatrixes: true,
+    // Điểm biểu cảm (cười, nhướng mày...) cho phân tích cảm xúc; model đã có sẵn, chỉ bật thêm.
+    outputFaceBlendshapes: true,
   }
   let landmarker
   try {
@@ -42,12 +44,18 @@ export async function createFaceDetector(): Promise<FaceDetector> {
       lastTimestamp = Math.max(Math.round(now), lastTimestamp + 1)
       const result = instance.detectForVideo(video, lastTimestamp)
       const matrix = result.facialTransformationMatrixes?.[0]?.data
-      const pose = result.faceLandmarks.length === 1 && matrix ? headPoseFromMatrix(matrix) : null
+      const singleFace = result.faceLandmarks.length === 1
+      const pose = singleFace && matrix ? headPoseFromMatrix(matrix) : null
+      const categories = singleFace ? result.faceBlendshapes?.[0]?.categories : undefined
       return {
         time: now,
         faceCount: result.faceLandmarks.length,
         yawDeg: pose?.yawDeg ?? null,
         pitchDeg: pose?.pitchDeg ?? null,
+        // Chỉ có khi đúng một khuôn mặt; với 0 hoặc nhiều mặt thì không có điểm biểu cảm đáng tin.
+        blendshapes: categories
+          ? Object.fromEntries(categories.map((item) => [item.categoryName, item.score]))
+          : undefined,
       }
     },
     close() {

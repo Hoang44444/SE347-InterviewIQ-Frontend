@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { validateInterviewVideo } from '@/services/interviewVideoUpload'
 import type { ApiError } from '@/types/api'
+import type { EmotionSummary } from '@/types/emotion'
 import type { Answer, InterviewRoomService } from '@/types/interview'
 import type { InterviewRecording } from '@/types/recording'
 
@@ -29,6 +30,7 @@ export function useAnswerSubmission(id: string, service: InterviewRoomService) {
     questionId: string,
     transcript: string,
     recording?: InterviewRecording,
+    emotionSummary?: EmotionSummary | null,
   ): Promise<Answer | null> {
     if (
       !activeRef.current ||
@@ -60,6 +62,8 @@ export function useAnswerSubmission(id: string, service: InterviewRoomService) {
       const answer = await service.submitAnswer(id, questionId, {
         cloudinaryPublicId: asset.publicId,
         transcript,
+        // Bỏ trường khi không có tóm tắt: backend hiểu là xóa tóm tắt cũ của câu này.
+        ...(emotionSummary ? { emotionSummary } : {}),
       })
       if (!activeRef.current) return null
       savedRef.current = { ...savedRef.current, [questionId]: answer }

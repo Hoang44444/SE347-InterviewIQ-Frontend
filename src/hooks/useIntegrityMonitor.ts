@@ -10,7 +10,12 @@ import {
 } from '@/constants/integrity'
 import { createFaceDetector } from '@/services/faceDetector'
 import type { CheatLogService, CheatSummary } from '@/types/cheat'
-import type { FaceDetectorState, IntegrityEvent, IntegrityEventType } from '@/types/integrity'
+import type {
+  FaceDetectorState,
+  FaceObservation,
+  IntegrityEvent,
+  IntegrityEventType,
+} from '@/types/integrity'
 import { isRetryableCheatLogError } from '@/utils/cheatLogRetry'
 import { createConditionTracker } from '@/utils/faceConditions'
 
@@ -23,6 +28,12 @@ export interface UseIntegrityMonitorOptions {
   /** Cùng với `cheatLogs`: có đủ cả hai thì mới gửi và nạp log lên backend. */
   sessionId?: string
   cheatLogs?: CheatLogService
+  /**
+   * Nhận mọi lần quan sát khuôn mặt (mỗi FACE_SAMPLE_INTERVAL_MS) để nơi khác, ví dụ phân tích
+   * biểu cảm, dùng chung detector này thay vì nạp model lần hai. Lỗi trong callback bị bỏ qua
+   * giống một khung hình lỗi.
+   */
+  onObservation?: (observation: FaceObservation) => void
 }
 
 /** Bộ đếm backend trả về có thể đến lệch thứ tự: giữ bản có tổng lớn hơn. */
@@ -44,6 +55,7 @@ export function useIntegrityMonitor({
   questionId,
   sessionId,
   cheatLogs,
+  onObservation,
 }: UseIntegrityMonitorOptions) {
   const [events, setEvents] = useState<IntegrityEvent[]>([])
   const [summary, setSummary] = useState<CheatSummary | null>(null)
@@ -53,11 +65,13 @@ export function useIntegrityMonitor({
   const counterRef = useRef(0)
 
   const cheatRef = useRef({ sessionId, cheatLogs })
+  const observationRef = useRef(onObservation)
 
   useEffect(() => {
     questionRef.current = questionId
     cheatRef.current = { sessionId, cheatLogs }
-  }, [questionId, sessionId, cheatLogs])
+    observationRef.current = onObservation
+  }, [questionId, sessionId, cheatLogs, onObservation])
 
   // Tải lại trang giữa chừng: lấy lại bộ đếm để cảnh báo không về 0.
   useEffect(() => {
@@ -259,7 +273,9 @@ export function useIntegrityMonitor({
         timer = window.setInterval(() => {
           if (!detector || video.readyState < 2 || video.videoWidth === 0) return
           try {
-            const { started, ended } = tracker.update(detector.detect(video, performance.now()))
+            const observation = detector.detect(video, performance.now())
+            observationRef.current?.(observation)
+            const { started, ended } = tracker.update(observation)
             for (const { condition, startedAt } of started) open(condition, epochOffset + startedAt)
             for (const { condition, endedAt } of ended) close(condition, epochOffset + endedAt)
           } catch {

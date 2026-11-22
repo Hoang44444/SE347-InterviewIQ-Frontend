@@ -1,4 +1,5 @@
 import type { CheatLogService } from '@/types/cheat'
+import type { EmotionSummary } from '@/types/emotion'
 import type { InterviewRecording } from '@/types/recording'
 
 export type InterviewStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled'
@@ -91,6 +92,8 @@ export interface InterviewRecordingSignedParams {
 export interface SaveAnswerPayload {
   cloudinaryPublicId: string
   transcript: string
+  /** Tóm tắt biểu cảm tính trên máy; vắng khi camera hoặc model không cho đủ dữ liệu. */
+  emotionSummary?: EmotionSummary
 }
 
 export type ScoringJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'

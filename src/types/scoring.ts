@@ -40,8 +40,9 @@ export interface SessionSummary {
   generatedAt: string
 }
 
+/** `positive` là nhãn của phân tích MediaPipe (CR-005); 7 nhãn còn lại là nhãn face-api cũ. */
 export type EmotionLabel =
-  'neutral' | 'happy' | 'surprised' | 'sad' | 'fearful' | 'angry' | 'disgusted'
+  'positive' | 'neutral' | 'happy' | 'surprised' | 'sad' | 'fearful' | 'angry' | 'disgusted'
 
 export interface EmotionSummary {
   dominant: string
