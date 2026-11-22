@@ -16,6 +16,21 @@ import { describeFromBankError, describeSaveToBankError } from '@/utils/question
 
 afterEach(() => vi.restoreAllMocks())
 
+/** Thao tác ngân hàng của cả bộ nằm trong menu "Ngân hàng"; ở trạng thái rỗng thì là nút riêng. */
+function chooseBank(name: string) {
+  const menu = screen.queryByRole('button', { name: 'Ngân hàng' })
+  if (menu) {
+    fireEvent.click(menu)
+    fireEvent.click(screen.getByRole('menuitem', { name }))
+  } else {
+    fireEvent.click(screen.getByRole('button', { name }))
+  }
+}
+
+function openOptions() {
+  fireEvent.click(screen.getByRole('button', { name: 'Tuỳ chỉnh' }))
+}
+
 function renderPanel(overrides: Partial<QuestionGenerationPanelProps> = {}) {
   const props: QuestionGenerationPanelProps = {
     questions: [],
@@ -141,6 +156,8 @@ test('regenerating the whole set requires confirmation and can be cancelled', ()
   fireEvent.click(within(dialog).getByRole('button', { name: 'Huỷ' }))
   expect(props.onGenerate).not.toHaveBeenCalled()
 
+  expect(screen.getByText(/5 câu, hỗn hợp lĩnh vực, độ khó tăng dần/)).toBeInTheDocument()
+  openOptions()
   fireEvent.change(screen.getByLabelText('Lĩnh vực'), { target: { value: 'TECHNICAL' } })
   fireEvent.click(screen.getByRole('button', { name: 'Sinh lại' }))
   expect(screen.getByRole('dialog')).toHaveTextContent('Kỹ thuật')
@@ -163,25 +180,16 @@ test('CV-not-parsed error links to the CV page', () => {
   expect(screen.getByRole('link')).toHaveAttribute('href', '/cvs')
 })
 
-test('each question regenerates on its own, keeping domain and difficulty unless changed', () => {
+test('each question regenerates on its own with one icon button, keeping its domain and difficulty', () => {
   const props = renderPanel({ questions: generatedQuestions.questions })
   const [first, second] = generatedQuestions.questions
 
   fireEvent.click(screen.getByRole('button', { name: 'Sinh lại câu 1' }))
   expect(props.onRegenerate).toHaveBeenLastCalledWith(first.publicId, {})
-
-  fireEvent.change(screen.getByLabelText('Lĩnh vực của câu 2 sau khi sinh lại'), {
-    target: { value: 'SITUATIONAL' },
-  })
-  fireEvent.change(screen.getByLabelText('Độ khó của câu 2 sau khi sinh lại'), {
-    target: { value: 'HARD' },
-  })
   fireEvent.click(screen.getByRole('button', { name: 'Sinh lại câu 2' }))
-  expect(props.onRegenerate).toHaveBeenLastCalledWith(second.publicId, {
-    domain: 'SITUATIONAL',
-    difficulty: 'HARD',
-  })
-  // sinh lại một câu không cần hộp xác nhận của cả bộ
+  expect(props.onRegenerate).toHaveBeenLastCalledWith(second.publicId, {})
+  // không có ô chọn riêng cho từng câu và không có hộp xác nhận của cả bộ
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
@@ -196,8 +204,15 @@ test('while one question regenerates only it shows progress and every conflictin
   expect(within(second).queryByText(/Đang sinh lại câu/)).not.toBeInTheDocument()
   expect(second).not.toHaveAttribute('aria-busy')
 
-  for (const button of screen.getAllByRole('button')) expect(button).toBeDisabled()
-  for (const select of screen.getAllByRole('combobox')) expect(select).toBeDisabled()
+  for (const name of [
+    'Sinh lại',
+    'Ngân hàng',
+    'Sinh lại câu 1',
+    'Sinh lại câu 2',
+    'Lưu câu 1 vào ngân hàng',
+  ]) {
+    expect(screen.getByRole('button', { name })).toBeDisabled()
+  }
 })
 
 test('a regeneration failure shows under its own question and the old text stays', () => {
@@ -225,7 +240,7 @@ test('saving the whole set toasts the saved and skipped counts', async () => {
       result: { savedCount: 3, skippedCount: 1 },
     }),
   })
-  fireEvent.click(screen.getByRole('button', { name: 'Lưu cả bộ vào ngân hàng' }))
+  chooseBank('Lưu cả bộ vào ngân hàng')
   expect(props.onSaveToBank).toHaveBeenCalledWith(undefined)
   expect(await screen.findByText('Đã lưu vào ngân hàng')).toBeInTheDocument()
   expect(screen.getByText('Đã lưu 3 câu, bỏ qua 1 câu đã có.')).toBeInTheDocument()
@@ -254,7 +269,7 @@ test('a full bank (409) says the 200 limit and how to free space, not the from-b
       error: describeSaveToBankError({ status: 409, message: 'bank full' }),
     }),
   })
-  fireEvent.click(screen.getByRole('button', { name: 'Lưu cả bộ vào ngân hàng' }))
+  chooseBank('Lưu cả bộ vào ngân hàng')
   expect(await screen.findByText('Chưa lưu được vào ngân hàng')).toBeInTheDocument()
   expect(screen.getByText(/tối đa 200 câu/)).toBeInTheDocument()
   expect(screen.getByText(/xoá bớt câu cũ/)).toBeInTheDocument()
@@ -264,7 +279,7 @@ test('a full bank (409) says the 200 limit and how to free space, not the from-b
 test('a blocked save (another operation running) shows no toast', async () => {
   const onSaveToBank = vi.fn().mockResolvedValue(undefined)
   renderPanel({ questions: generatedQuestions.questions, onSaveToBank })
-  fireEvent.click(screen.getByRole('button', { name: 'Lưu cả bộ vào ngân hàng' }))
+  chooseBank('Lưu cả bộ vào ngân hàng')
   await waitFor(() => expect(onSaveToBank).toHaveBeenCalled())
   expect(screen.queryByText('Đã lưu vào ngân hàng')).not.toBeInTheDocument()
   expect(screen.queryByText('Chưa lưu được vào ngân hàng')).not.toBeInTheDocument()
@@ -272,9 +287,8 @@ test('a blocked save (another operation running) shows no toast', async () => {
 
 test('every save and bank button is locked while a save is running', () => {
   renderPanel({ questions: generatedQuestions.questions, isSaving: true })
-  expect(screen.getByRole('button', { name: /Lưu cả bộ vào ngân hàng/ })).toBeDisabled()
+  expect(screen.getByRole('button', { name: /Ngân hàng/ })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Lưu câu 1 vào ngân hàng' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: 'Dùng câu từ ngân hàng' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Sinh lại' })).toBeDisabled()
 })
 
@@ -289,7 +303,7 @@ function manyItems(count: number): BankItem[] {
 
 async function openPicker(list: BankItem[] = bankItems) {
   vi.spyOn(questionBankService, 'list').mockResolvedValue(bankPage(list))
-  fireEvent.click(screen.getByRole('button', { name: 'Dùng câu từ ngân hàng' }))
+  chooseBank('Dùng câu từ ngân hàng')
   const dialog = screen.getByRole('dialog')
   await within(dialog).findByText(list[0].content)
   return dialog
@@ -440,7 +454,7 @@ test('the picker locks while replacing and a blocked call leaves it open', async
 test('the picker shows an empty-bank hint', async () => {
   renderPanel({ questions: [] })
   vi.spyOn(questionBankService, 'list').mockResolvedValue(bankPage([]))
-  fireEvent.click(screen.getByRole('button', { name: 'Dùng câu từ ngân hàng' }))
+  chooseBank('Dùng câu từ ngân hàng')
   const dialog = screen.getByRole('dialog')
   expect(await within(dialog).findByText(/Ngân hàng chưa có câu nào/)).toBeInTheDocument()
   expect(within(dialog).getByRole('button', { name: /^Dùng/ })).toBeDisabled()

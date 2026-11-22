@@ -13,12 +13,7 @@ import {
   QUESTION_COUNT_MAX,
   QUESTION_COUNT_MIN,
 } from '@/constants/interview'
-import {
-  DIFFICULTY_GENERATE_OPTIONS,
-  DIFFICULTY_REGENERATE_OPTIONS,
-  DOMAIN_GENERATE_OPTIONS,
-  DOMAIN_REGENERATE_OPTIONS,
-} from '@/constants/questionBank'
+import { DIFFICULTY_GENERATE_OPTIONS, DOMAIN_GENERATE_OPTIONS } from '@/constants/questionBank'
 import type {
   GenerateError,
   RegenerateFailure,
@@ -213,6 +208,75 @@ function GenerateErrorNotice({
   )
 }
 
+const MENU_ITEM_CLASS =
+  'w-full rounded-control px-3 py-2 text-left text-sm text-content hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-brand-600'
+
+/** Hai thao tác ngân hàng của cả bộ gom vào một menu để thanh công cụ không bị dày nút. */
+function BankMenu({
+  disabled,
+  isSaving,
+  onPick,
+  onSaveAll,
+}: {
+  disabled: boolean
+  isSaving: boolean
+  onPick: () => void
+  onSaveAll: () => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  function choose(action: () => void) {
+    setIsOpen(false)
+    action()
+  }
+
+  return (
+    <div
+      className="relative"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') setIsOpen(false)
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setIsOpen(false)
+      }}
+    >
+      <Button
+        variant="secondary"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        isLoading={isSaving}
+        disabled={disabled}
+        onClick={() => setIsOpen((previous) => !previous)}
+      >
+        Ngân hàng
+      </Button>
+      {isOpen && (
+        <div
+          role="menu"
+          className="absolute right-0 z-10 mt-1 w-60 rounded-card border border-border bg-surface p-1 shadow-popover"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className={MENU_ITEM_CLASS}
+            onClick={() => choose(onPick)}
+          >
+            Dùng câu từ ngân hàng
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={MENU_ITEM_CLASS}
+            onClick={() => choose(onSaveAll)}
+          >
+            Lưu cả bộ vào ngân hàng
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface QuestionItemProps {
   question: GeneratedQuestion
   index: number
@@ -233,9 +297,6 @@ function QuestionItem({
   onRegenerate,
   onSave,
 }: QuestionItemProps) {
-  // Mặc định giữ lĩnh vực và độ khó của câu cũ (không gửi trường nào).
-  const [domain, setDomain] = useState<QuestionDomain | ''>('')
-  const [difficulty, setDifficulty] = useState<QuestionDifficulty | ''>('')
   const number = index + 1
 
   return (
@@ -252,9 +313,7 @@ function QuestionItem({
         {DOMAIN_ICON[question.domain]}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <p className="text-xs font-semibold tracking-wide text-content-subtle uppercase">
-          Câu {number}
-        </p>
+        <p className="text-sm text-content-subtle">Câu {number}</p>
         <p className="font-medium wrap-anywhere text-content">{question.content}</p>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={DOMAIN_TONE[question.domain]}>{DOMAIN_LABEL[question.domain]}</Badge>
@@ -268,50 +327,39 @@ function QuestionItem({
           </p>
         )}
         {failure && <ErrorNotice title={`Chưa sinh lại được câu ${number}`} error={failure} />}
-        <div className="flex flex-wrap items-end gap-2 pt-1">
-          <div className="w-36">
-            <Select
-              aria-label={`Lĩnh vực của câu ${number} sau khi sinh lại`}
-              options={DOMAIN_REGENERATE_OPTIONS}
-              value={domain}
-              onChange={(event) => setDomain(event.target.value as QuestionDomain | '')}
-              disabled={isBusy}
-            />
-          </div>
-          <div className="w-36">
-            <Select
-              aria-label={`Độ khó của câu ${number} sau khi sinh lại`}
-              options={DIFFICULTY_REGENERATE_OPTIONS}
-              value={difficulty}
-              onChange={(event) => setDifficulty(event.target.value as QuestionDifficulty | '')}
-              disabled={isBusy}
-            />
-          </div>
-          <Button
-            variant="secondary"
-            size="md"
-            aria-label={`Sinh lại câu ${number}`}
-            isLoading={isRegenerating}
-            disabled={isBusy}
-            onClick={() =>
-              onRegenerate(question.publicId, {
-                ...(domain ? { domain } : {}),
-                ...(difficulty ? { difficulty } : {}),
-              })
-            }
-          >
-            {isRegenerating ? 'Đang sinh…' : 'Sinh lại câu này'}
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
-            aria-label={`Lưu câu ${number} vào ngân hàng`}
-            disabled={isBusy}
-            onClick={() => onSave(question.publicId)}
-          >
-            Lưu vào ngân hàng
-          </Button>
-        </div>
+      </div>
+      {/* Hai thao tác của câu gọn thành nút biểu tượng; tên đầy đủ nằm ở tooltip và aria-label. */}
+      <div className="flex shrink-0 gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="size-9 px-0"
+          aria-label={`Sinh lại câu ${number}`}
+          title="Sinh lại câu này"
+          isLoading={isRegenerating}
+          disabled={isBusy}
+          leftIcon={
+            <Icon size="size-5">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <polyline points="21 3 21 9 15 9" />
+            </Icon>
+          }
+          onClick={() => onRegenerate(question.publicId, {})}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="size-9 px-0"
+          aria-label={`Lưu câu ${number} vào ngân hàng`}
+          title="Lưu vào ngân hàng"
+          disabled={isBusy}
+          leftIcon={
+            <Icon size="size-5">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </Icon>
+          }
+          onClick={() => onSave(question.publicId)}
+        />
       </div>
     </li>
   )
@@ -366,6 +414,7 @@ export function QuestionGenerationPanel({
   })
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isPickerOpen, setIsPickerOpen] = useState(false)
+  const [isOptionsOpen, setIsOptionsOpen] = useState(false)
   const hasQuestions = questions.length > 0
   const isBusy = isGenerating || regeneratingId !== null || isSaving || isReplacing
 
@@ -409,6 +458,11 @@ export function QuestionGenerationPanel({
       onConfirm={replaceFromBank}
     />
   )
+
+  const domainText = options.domain ? DOMAIN_LABEL[options.domain] : 'hỗn hợp lĩnh vực'
+  const difficultyText = options.difficulty
+    ? DIFFICULTY_LABEL[options.difficulty]
+    : 'độ khó tăng dần'
 
   let body: ReactNode
   if (isLoading && !isGenerating) {
@@ -479,10 +533,24 @@ export function QuestionGenerationPanel({
   } else {
     body = (
       <Stack gap="md">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <p className="text-sm text-content-muted">{questions.length} câu hỏi</p>
-          <div className="flex flex-wrap items-end gap-3">
-            <GenerationOptions value={options} onChange={setOptions} disabled={isBusy} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-medium text-content">{questions.length} câu hỏi</p>
+            <p className="text-sm text-content-muted">
+              Lần sinh tới: {options.count} câu, {domainText}, {difficultyText}.{' '}
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto"
+                aria-expanded={isOptionsOpen}
+                aria-controls="generation-options"
+                onClick={() => setIsOptionsOpen((previous) => !previous)}
+              >
+                {isOptionsOpen ? 'Ẩn tuỳ chỉnh' : 'Tuỳ chỉnh'}
+              </Button>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
             <Button
               variant="secondary"
               onClick={() => setIsConfirmOpen(true)}
@@ -491,21 +559,22 @@ export function QuestionGenerationPanel({
             >
               {isGenerating ? 'Đang sinh…' : 'Sinh lại'}
             </Button>
+            <BankMenu
+              disabled={isBusy}
+              isSaving={isSaving}
+              onPick={() => setIsPickerOpen(true)}
+              onSaveAll={() => void save()}
+            />
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button variant="secondary" onClick={() => setIsPickerOpen(true)} disabled={isBusy}>
-            Dùng câu từ ngân hàng
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => void save()}
-            isLoading={isSaving}
-            disabled={isBusy}
+        {isOptionsOpen && (
+          <div
+            id="generation-options"
+            className="flex flex-wrap items-end gap-3 rounded-card bg-surface-muted p-4"
           >
-            Lưu cả bộ vào ngân hàng
-          </Button>
-        </div>
+            <GenerationOptions value={options} onChange={setOptions} disabled={isBusy} />
+          </div>
+        )}
         {isGenerating && (
           <p role="status" className="text-sm text-content-muted">
             Đang sinh bộ câu hỏi mới, có thể mất tới khoảng {GENERATE_EXPECTED_SECONDS} giây.
@@ -520,8 +589,7 @@ export function QuestionGenerationPanel({
         <ol className="flex flex-col gap-3">
           {questions.map((question, index) => (
             <QuestionItem
-              // Đổi nội dung thì dựng lại, để hai ô chọn của câu trở về "Giữ nguyên".
-              key={`${question.publicId}:${question.content}`}
+              key={question.publicId}
               question={question}
               index={index}
               isBusy={isBusy}
@@ -539,11 +607,6 @@ export function QuestionGenerationPanel({
       </Stack>
     )
   }
-
-  const domainText = options.domain ? DOMAIN_LABEL[options.domain] : 'hỗn hợp lĩnh vực'
-  const difficultyText = options.difficulty
-    ? DIFFICULTY_LABEL[options.difficulty]
-    : 'độ khó tăng dần'
 
   return (
     <section aria-labelledby="question-panel-title" className="flex flex-col gap-4">

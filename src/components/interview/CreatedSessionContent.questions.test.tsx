@@ -14,6 +14,21 @@ import type { SessionQuestions } from '@/types/interview'
 
 afterEach(() => vi.restoreAllMocks())
 
+/** Thao tác ngân hàng của cả bộ nằm trong menu "Ngân hàng"; ở trạng thái rỗng thì là nút riêng. */
+function chooseBank(name: string) {
+  const menu = screen.queryByRole('button', { name: 'Ngân hàng' })
+  if (menu) {
+    fireEvent.click(menu)
+    fireEvent.click(screen.getByRole('menuitem', { name }))
+  } else {
+    fireEvent.click(screen.getByRole('button', { name }))
+  }
+}
+
+function openOptions() {
+  fireEvent.click(screen.getByRole('button', { name: 'Tuỳ chỉnh' }))
+}
+
 const [first, second] = generatedQuestions.questions
 const sessionId = session.sessionPublicId
 
@@ -113,9 +128,6 @@ test('a 400 on regenerate asks the user to choose domain and difficulty again', 
     status: 400,
     message: 'domain must be one of',
   })
-  fireEvent.change(screen.getByLabelText('Lĩnh vực của câu 1 sau khi sinh lại'), {
-    target: { value: 'TECHNICAL' },
-  })
   fireEvent.click(screen.getByRole('button', { name: 'Sinh lại câu 1' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('không hợp lệ')
 })
@@ -126,6 +138,7 @@ test('generating the set sends the chosen domain and difficulty', async () => {
   const generate = vi
     .spyOn(interviewService, 'generateQuestions')
     .mockResolvedValue(generatedQuestions)
+  openOptions()
   fireEvent.change(screen.getByLabelText('Lĩnh vực'), { target: { value: 'TECHNICAL' } })
   fireEvent.change(screen.getByLabelText('Độ khó'), { target: { value: 'EASY' } })
   fireEvent.click(screen.getByRole('button', { name: 'Sinh lại' }))
@@ -147,7 +160,7 @@ test('saving to the bank shows the real counts, and a full bank shows the 200 li
     .mockResolvedValueOnce({ savedCount: 1, skippedCount: 1 })
     .mockRejectedValueOnce({ status: 409, message: 'Question bank is full' })
 
-  fireEvent.click(screen.getByRole('button', { name: 'Lưu cả bộ vào ngân hàng' }))
+  chooseBank('Lưu cả bộ vào ngân hàng')
   expect(await screen.findByText('Đã lưu 1 câu, bỏ qua 1 câu đã có.')).toBeInTheDocument()
   expect(save).toHaveBeenCalledWith({ sessionPublicId: sessionId })
 
@@ -166,7 +179,7 @@ test('saving ignores a second click while the first request is in flight', async
   await loaded()
   const pending = deferred<{ savedCount: number; skippedCount: number }>()
   const save = vi.spyOn(questionBankService, 'saveFromSession').mockReturnValue(pending.promise)
-  const button = screen.getByRole('button', { name: 'Lưu cả bộ vào ngân hàng' })
+  const button = screen.getByRole('button', { name: 'Lưu câu 1 vào ngân hàng' })
   fireEvent.click(button)
   fireEvent.click(button)
   expect(save).toHaveBeenCalledTimes(1)
@@ -181,7 +194,7 @@ test('using bank questions replaces the whole set in selection order, once even 
   const pending = deferred<SessionQuestions>()
   const fromBank = vi.spyOn(questionBankService, 'useInSession').mockReturnValue(pending.promise)
 
-  fireEvent.click(screen.getByRole('button', { name: 'Dùng câu từ ngân hàng' }))
+  chooseBank('Dùng câu từ ngân hàng')
   const dialog = screen.getByRole('dialog')
   await within(dialog).findByText(bankItems[0].content)
   for (const item of [bankItems[3], bankItems[1], bankItems[0]]) {
@@ -227,7 +240,7 @@ test('a from-bank failure leaves the current set untouched', async () => {
     status: 500,
     message: 'Infra',
   })
-  fireEvent.click(screen.getByRole('button', { name: 'Dùng câu từ ngân hàng' }))
+  chooseBank('Dùng câu từ ngân hàng')
   const dialog = screen.getByRole('dialog')
   await within(dialog).findByText(bankItems[0].content)
   for (const item of bankItems.slice(0, 3)) {

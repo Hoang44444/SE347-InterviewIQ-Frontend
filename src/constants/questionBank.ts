@@ -46,14 +46,3 @@ export const DIFFICULTY_GENERATE_OPTIONS: SelectOption[] = [
   { value: '', label: 'Tăng dần' },
   ...DIFFICULTIES.map((value) => ({ value, label: DIFFICULTY_LABEL[value] })),
 ]
-
-/** Ô chọn khi sinh lại một câu: lựa chọn đầu là giữ nguyên giá trị của câu cũ. */
-export const DOMAIN_REGENERATE_OPTIONS: SelectOption[] = [
-  { value: '', label: 'Giữ lĩnh vực' },
-  ...DOMAINS.map((value) => ({ value, label: DOMAIN_LABEL[value] })),
-]
-
-export const DIFFICULTY_REGENERATE_OPTIONS: SelectOption[] = [
-  { value: '', label: 'Giữ độ khó' },
-  ...DIFFICULTIES.map((value) => ({ value, label: DIFFICULTY_LABEL[value] })),
-]
