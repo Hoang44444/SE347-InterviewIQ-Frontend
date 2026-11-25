@@ -1,0 +1,17 @@
+# Chạy bản production của frontend. Backend có compose.yml riêng ở repo backend.
+services:
+  web:
+    image: interviewiq-frontend
+    build:
+      context: .
+      args:
+        # Địa chỉ backend nhìn từ trình duyệt, không phải tên service trong Docker.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
+        VITE_APP_NAME: ${VITE_APP_NAME:-InterviewIQ}
+        # Chỉ truyền vào khi đã khai báo.
+        VITE_MEDIAPIPE_WASM_URL:
+        VITE_FACE_MODEL_URL:
+    ports:
+      # Backend chỉ cho phép CORS từ localhost:5173 và localhost:3000.
+      - '127.0.0.1:${WEB_PORT:-5173}:80'
+    restart: unless-stopped
