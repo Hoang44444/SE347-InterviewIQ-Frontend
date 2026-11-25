@@ -18,6 +18,8 @@ export interface CheatSummary {
 }
 
 export interface RecordCheatLogPayload {
+  /** UUID do client sinh cho mỗi sự kiện, giữ nguyên khi gửi lại để backend loại trùng. */
+  clientEventId: string
   eventType: CheatEventType
   occurredAt: string
   /** Tối đa 500 ký tự. */
@@ -34,8 +36,24 @@ export interface CheatLogList {
   summary: CheatSummary
 }
 
+/** Ack của sự kiện `cheat-log:record` trên namespace `/cheat-logs`. */
+export type CheatLogAck =
+  | { success: true; data: RecordCheatLogResult }
+  | {
+      success: false
+      statusCode: number
+      code?: string
+      message: string
+      errors?: { field: string; messages: string[] }[]
+    }
+
 /** Tách riêng để phòng phỏng vấn dùng được dữ liệu mẫu mà không gọi backend. */
 export interface CheatLogService {
   record: (sessionPublicId: string, payload: RecordCheatLogPayload) => Promise<RecordCheatLogResult>
   list: (sessionPublicId: string) => Promise<CheatLogList>
+  /**
+   * Mở kênh realtime cho tới khi gọi hàm trả về. Không có hoặc chưa kết nối được
+   * thì `record` tự gửi qua REST.
+   */
+  connect?: () => () => void
 }

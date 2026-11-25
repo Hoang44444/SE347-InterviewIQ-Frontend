@@ -3,52 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { useSpeechTranscript } from './useSpeechTranscript'
 
-import type {
-  SpeechRecognitionErrorEventLike,
-  SpeechRecognitionEventLike,
-  SpeechRecognitionLike,
-} from '@/types/speech'
-
-class FakeRecognition implements SpeechRecognitionLike {
-  static instances: FakeRecognition[] = []
-  static startError: Error | null = null
-
-  lang = ''
-  continuous = false
-  interimResults = false
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null = null
-  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null = null
-  onend: (() => void) | null = null
-  start = vi.fn(() => {
-    if (FakeRecognition.startError) throw FakeRecognition.startError
-  })
-  stop = vi.fn()
-  abort = vi.fn()
-
-  constructor() {
-    FakeRecognition.instances.push(this)
-  }
-
-  emit(results: Array<{ text: string; isFinal: boolean }>, resultIndex = 0) {
-    this.onresult?.({
-      resultIndex,
-      results: Object.assign(
-        results.map(({ text, isFinal }) =>
-          Object.assign([{ transcript: text, confidence: 1 }], { isFinal }),
-        ),
-        {},
-      ),
-    })
-  }
-
-  fail(error: string) {
-    this.onerror?.({ error })
-  }
-
-  end() {
-    this.onend?.()
-  }
-}
+import { FakeRecognition } from '@/test/speechRecognition'
 
 const speechWindow = window as unknown as Record<string, unknown>
 

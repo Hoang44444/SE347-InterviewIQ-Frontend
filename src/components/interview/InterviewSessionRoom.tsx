@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { CreatedSessionContent } from '@/components/interview/CreatedSessionContent'
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner, Stack } from '@/components/ui'
+import { historyActionLabel } from '@/constants/history'
 import { SESSION_STATUS_LABEL, SESSION_STATUS_TONE } from '@/constants/interview'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useStartInterviewSession } from '@/hooks/useStartInterviewSession'
@@ -13,12 +14,19 @@ import type { InterviewRoomLocationState, InterviewSession } from '@/types/inter
 import { formatDate } from '@/utils/format'
 import { isSessionId } from '@/utils/sessionId'
 
+/**
+ * Cổng vào phòng theo trạng thái phiên: CREATED thì sinh câu hỏi và bắt đầu,
+ * IN_PROGRESS thì mở phòng ghi hình, các trạng thái đã đóng thì dẫn sang kết quả.
+ */
 export function InterviewSessionRoom({
   id,
   knownSession,
+  liveRoom,
 }: {
   id: string
   knownSession?: InterviewSession
+  /** Phòng ghi hình, chỉ được gắn khi phiên đang diễn ra. */
+  liveRoom: ReactNode
 }) {
   const navigate = useNavigate()
   const [session, setSession] = useState<InterviewSession | null>(null)
@@ -74,6 +82,20 @@ export function InterviewSessionRoom({
       requestRef.current += 1
     }
   }, [loadSession])
+
+  if (session?.status === 'IN_PROGRESS') {
+    return (
+      <Stack gap="lg">
+        {/* Bấm Bắt đầu bị 409 rồi đồng bộ thấy phiên đã chạy: vẫn phải nói lý do. */}
+        {start.error && (
+          <p role="alert" className="text-sm text-danger-700">
+            {start.error}
+          </p>
+        )}
+        {liveRoom}
+      </Stack>
+    )
+  }
 
   return (
     <Stack gap="lg">
@@ -155,21 +177,16 @@ export function InterviewSessionRoom({
                   </div>
                 )}
               </dl>
-              {session.startedAt && (
-                <p className="text-sm text-content-muted">
-                  Bắt đầu lúc{' '}
-                  <time dateTime={session.startedAt}>
-                    {new Intl.DateTimeFormat('vi-VN', {
-                      dateStyle: 'medium',
-                      timeStyle: 'medium',
-                    }).format(new Date(session.startedAt))}
-                  </time>
-                </p>
-              )}
               <div>
-                <h2 className="text-xl font-semibold text-content">Đang chờ nội dung câu hỏi</h2>
+                <h2 className="text-xl font-semibold text-content">Buổi phỏng vấn đã đóng</h2>
                 <p className="mt-2 text-content-muted">
-                  Nội dung câu hỏi chưa có sẵn trong phòng này.
+                  Buổi này không thể làm tiếp.{' '}
+                  <Link
+                    to={ROUTES.historyDetail(session.sessionPublicId)}
+                    className="rounded-control font-medium text-brand-600 hover:underline focus-visible:outline-brand-600"
+                  >
+                    {historyActionLabel(session.status)}
+                  </Link>
                 </p>
               </div>
             </Stack>

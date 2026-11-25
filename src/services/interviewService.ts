@@ -1,5 +1,6 @@
 import { apiClient } from './apiClient'
 import { cheatLogService } from './cheatLogService'
+import { interviewHistoryService } from './interviewHistoryService'
 import { uploadInterviewVideo } from './interviewVideoUpload'
 
 import { GENERATE_QUESTIONS_TIMEOUT } from '@/constants/interview'
@@ -96,23 +97,23 @@ export const interviewService = {
     return data.data
   },
 
-  /**
-   * CHƯA KHỚP BACKEND. `GET /interviews/:id` hiện thuộc module lịch sử và trả về
-   * shape khác (totalQuestions, status hoa, cv lồng trong object) — hợp đồng
-   * thật nằm ở `interviewHistoryService.getById`. Phòng phỏng vấn vẫn gọi hàm
-   * này nên tạm giữ lại; sửa cùng lúc với `getQuestions` bên dưới, vì
-   * `/interviews/:id/questions` thì backend không có endpoint nào cả.
-   */
+  /** Thông tin phòng phỏng vấn, lấy từ API chi tiết của module lịch sử. */
   async getById(id: string): Promise<Interview> {
-    const { data } = await apiClient.get<ApiSuccessResponse<Interview>>(`/interviews/${id}`)
-    return data.data
+    const detail = await interviewHistoryService.getById(id)
+    return { id: detail.id, title: detail.title, cvPublicId: detail.cv?.id }
   },
 
+  /** Bộ câu hỏi của phiên theo đúng thứ tự, đổi về dạng phòng phỏng vấn dùng. */
   async getQuestions(id: string): Promise<Question[]> {
-    const { data } = await apiClient.get<ApiSuccessResponse<Question[]>>(
-      `/interviews/${id}/questions`,
-    )
-    return data.data
+    const { questions } = await interviewService.getSessionQuestions(id)
+    return [...questions]
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+      .map(({ publicId, content, domain, difficulty }) => ({
+        id: publicId,
+        content,
+        domain,
+        difficulty,
+      }))
   },
 
   async getAnswerSignedParams(

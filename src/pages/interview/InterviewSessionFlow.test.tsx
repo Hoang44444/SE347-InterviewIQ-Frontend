@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { InternalAxiosRequestConfig } from 'axios'
 import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import { afterEach, expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 
 import { InterviewListPage } from './InterviewListPage'
 import { InterviewRoomPage } from './InterviewRoomPage'
@@ -9,8 +9,18 @@ import { InterviewRoomPage } from './InterviewRoomPage'
 import { ToastProvider } from '@/contexts/ToastProvider'
 import { apiClient } from '@/services/apiClient'
 import { deferred } from '@/test/interviewFixtures'
-import { generatedQuestions, session, sessionPage, startedSession } from '@/test/sessionFixtures'
+import { roomLoadData, session, sessionPage, startedSession } from '@/test/sessionFixtures'
 import type { InterviewSession, InterviewSessionStatus } from '@/types/interview'
+
+/* socket.io là ranh giới mạng thật: thay bằng socket giả để test không mở kết nối. */
+vi.mock('socket.io-client', () => ({
+  io: () => ({ connected: false, active: false, connect: vi.fn(), disconnect: vi.fn() }),
+}))
+
+/** Phiên đang diễn ra thì trang hiện phòng chờ của phòng ghi hình. */
+function findLobby() {
+  return screen.findByRole('heading', { name: 'Phòng chờ' })
+}
 
 /** Nút Bắt đầu của phiên CREATED chỉ bật sau khi bộ câu hỏi đã tải xong. */
 async function findEnabledStart() {
@@ -35,10 +45,11 @@ function setup(
 ) {
   const requests: InternalAxiosRequestConfig[] = []
   apiClient.defaults.adapter = async (config) => {
-    // Bộ câu hỏi của phiên CREATED được tải riêng, không tính vào các request đang kiểm tra.
-    if (config.url?.endsWith('/questions') && config.method === 'get') {
+    // Nội dung phòng được tải riêng, không tính vào các request đang kiểm tra.
+    const roomData = roomLoadData(config)
+    if (roomData) {
       return {
-        data: { success: true, data: generatedQuestions },
+        data: { success: true, data: roomData },
         status: 200,
         statusText: 'OK',
         headers: {},
@@ -152,13 +163,10 @@ test.each(['list', 'room'])(
     for (const button of buttons) expect(button).toBeDisabled()
     if (buttons[1]) expect(buttons[1]).not.toHaveAttribute('aria-busy')
     await act(async () => pending.resolve(startedSession))
-    expect(await screen.findByText('Đang diễn ra')).toBeInTheDocument()
-    const timestamp = screen.getByText(/Bắt đầu lúc/).querySelector('time')!
-    expect(timestamp).toHaveAttribute('datetime', startedSession.startedAt)
+    expect(await findLobby()).toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('navigation-state').textContent!).session).toMatchObject(
       startedSession,
     )
-    expect(screen.getByText('Đang chờ nội dung câu hỏi')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Bắt đầu' })).not.toBeInTheDocument()
     expect(requests.every((r) => r.url?.startsWith('/interview-session'))).toBe(true)
   },
@@ -195,8 +203,8 @@ test.each([
     const start = screen.queryByRole('button', { name: 'Bắt đầu' })
     if (start) expect(start).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Tải lại' }))
-    expect(await screen.findByText('Đang diễn ra')).toBeInTheDocument()
-    expect(screen.queryByText(/Bắt đầu lúc/)).not.toBeInTheDocument()
+    if (place === 'list') expect(await screen.findByText('Đang diễn ra')).toBeInTheDocument()
+    else expect(await findLobby()).toBeInTheDocument()
     expect(requests.filter((r) => r.method === 'post')).toHaveLength(1)
   },
 )
@@ -222,8 +230,7 @@ test.each([400, 403, 500])(
           : 'Không thể bắt đầu phiên phỏng vấn. Hãy thử lại',
     )
     fireEvent.click(screen.getByRole('button', { name: 'Bắt đầu' }))
-    await screen.findByText(/Bắt đầu lúc/)
-    expect(screen.getByText('Đang diễn ra')).toBeInTheDocument()
+    expect(await findLobby()).toBeInTheDocument()
   },
 )
 
@@ -234,7 +241,7 @@ test('does not send Start for malformed UUID', async () => {
   expect(requests.filter((r) => r.method === 'post')).toHaveLength(0)
 })
 
-test('direct URL searches later pages, including after ?created=1, and trusts API status without inventing startedAt', async () => {
+test('direct URL searches later pages, including after ?created=1, and trusts API status', async () => {
   const { requests } = setup(
     (config) =>
       sessionPage(
@@ -244,8 +251,7 @@ test('direct URL searches later pages, including after ?created=1, and trusts AP
       ),
     `/interviews/${session.sessionPublicId}?created=1`,
   )
-  expect(await screen.findByText('Đang diễn ra')).toBeInTheDocument()
-  expect(screen.queryByText(/Bắt đầu lúc/)).not.toBeInTheDocument()
+  expect(await findLobby()).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Bắt đầu' })).not.toBeInTheDocument()
   expect(requests.map((r) => r.params.pageNumber)).toEqual([1, 2])
 })

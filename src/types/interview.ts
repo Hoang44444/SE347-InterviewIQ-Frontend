@@ -27,19 +27,11 @@ export interface StartInterviewSessionResult {
 
 export type QuestionKind = 'behavioral' | 'technical' | 'coding'
 
-export interface Question {
-  id: string
-  kind: QuestionKind
-  content: string
-  /** Thời gian gợi ý để trả lời, tính bằng giây. */
-  suggestedSeconds: number
-}
-
 export type QuestionDomain = 'TECHNICAL' | 'BEHAVIORAL' | 'SITUATIONAL'
 
 export type QuestionDifficulty = 'EASY' | 'MEDIUM' | 'HARD'
 
-/** Câu hỏi do AI sinh cho một phiên; khác `Question` của phòng phỏng vấn cũ. */
+/** Câu hỏi do AI sinh cho một phiên, đúng hình dạng backend trả về. */
 export interface GeneratedQuestion {
   publicId: string
   orderIndex: number
@@ -54,14 +46,22 @@ export interface SessionQuestions {
   questions: GeneratedQuestion[]
 }
 
+/** Câu hỏi như phòng phỏng vấn dùng. */
+export interface Question {
+  id: string
+  content: string
+  domain: QuestionDomain
+  difficulty: QuestionDifficulty
+  /** Thời gian gợi ý để trả lời (giây). Backend chưa trả trường này, chỉ phòng demo có. */
+  suggestedSeconds?: number
+}
+
+/** Thông tin buổi phỏng vấn mà phòng cần hiển thị và nộp bài. */
 export interface Interview {
   id: string
   title: string
-  position: string
-  status: InterviewStatus
-  questionCount: number
-  createdAt: string
-  score?: number
+  /** Backend chưa trả vị trí ứng tuyển, chỉ phòng demo có. */
+  position?: string
   /** CV gắn với session, cần khi nộp session để chấm điểm. */
   cvPublicId?: string
 }
