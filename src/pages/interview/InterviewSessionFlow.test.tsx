@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { InternalAxiosRequestConfig } from 'axios'
-import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import { InterviewListPage } from './InterviewListPage'
@@ -10,6 +10,7 @@ import { ToastProvider } from '@/contexts/ToastProvider'
 import { apiClient } from '@/services/apiClient'
 import { deferred } from '@/test/interviewFixtures'
 import { roomLoadData, session, sessionPage, startedSession } from '@/test/sessionFixtures'
+import { TestRouter } from '@/test/TestRouter'
 import type { InterviewSession, InterviewSessionStatus } from '@/types/interview'
 
 /* socket.io là ranh giới mạng thật: thay bằng socket giả để test không mở kết nối. */
@@ -62,14 +63,14 @@ function setup(
   }
   const view = render(
     <ToastProvider>
-      <MemoryRouter initialEntries={[url]}>
+      <TestRouter initialEntries={[url]}>
         <LocationState />
         <Link to="/interviews/00000000-0000-4000-8000-000000000004">Đổi phòng</Link>
         <Routes>
           <Route path="/interviews" element={<InterviewListPage />} />
           <Route path="/interviews/:id" element={<InterviewRoomPage />} />
         </Routes>
-      </MemoryRouter>
+      </TestRouter>
     </ToastProvider>,
   )
   return { requests, ...view }

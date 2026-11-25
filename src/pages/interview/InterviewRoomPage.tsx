@@ -6,6 +6,7 @@ import { InterviewSessionRoom } from '@/components/interview/InterviewSessionRoo
 import {
   IntegrityStatus,
   InterviewRecorder,
+  LeaveRoomGuard,
   QuestionPanel,
   QuestionProgress,
   RecordingPlayback,
@@ -379,9 +380,12 @@ export function InterviewRoom({
     )
   }
 
+  const leaveGuard = <LeaveRoomGuard when={shouldWarnOnLeave} />
+
   if (isFinished) {
     return (
       <Stack gap="lg">
+        {leaveGuard}
         <PageHeader
           title={
             !submission
@@ -573,6 +577,7 @@ export function InterviewRoom({
 
   return (
     <Stack gap="lg">
+      {leaveGuard}
       <PageHeader
         title={interview.title}
         description={interview.position}

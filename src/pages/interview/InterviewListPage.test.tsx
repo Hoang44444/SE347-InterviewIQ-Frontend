@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { InternalAxiosRequestConfig } from 'axios'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import { InterviewListPage } from './InterviewListPage'
@@ -10,6 +10,7 @@ import { STORAGE_KEYS } from '@/constants'
 import { ToastProvider } from '@/contexts/ToastProvider'
 import { apiClient } from '@/services/apiClient'
 import { roomLoadData, session, sessionPage, startedSession } from '@/test/sessionFixtures'
+import { TestRouter } from '@/test/TestRouter'
 import type { InterviewSession } from '@/types/interview'
 import { storage } from '@/utils/storage'
 
@@ -97,12 +98,12 @@ function setup({
   storage.set(STORAGE_KEYS.accessToken, 'test-token')
   render(
     <ToastProvider>
-      <MemoryRouter initialEntries={['/interviews']}>
+      <TestRouter initialEntries={['/interviews']}>
         <Routes>
           <Route path="/interviews" element={<InterviewListPage />} />
           <Route path="/interviews/:id" element={<InterviewRoomPage />} />
         </Routes>
-      </MemoryRouter>
+      </TestRouter>
     </ToastProvider>,
   )
   fireEvent.click(screen.getByRole('button', { name: 'Tạo buổi mới' }))
@@ -337,11 +338,11 @@ test('opens the newly created room URL in a fresh navigation without using legac
   }
   render(
     <ToastProvider>
-      <MemoryRouter initialEntries={[`/interviews/${sessionId}?created=1`]}>
+      <TestRouter initialEntries={[`/interviews/${sessionId}?created=1`]}>
         <Routes>
           <Route path="/interviews/:id" element={<InterviewRoomPage />} />
         </Routes>
-      </MemoryRouter>
+      </TestRouter>
     </ToastProvider>,
   )
   expect(await screen.findByRole('heading', { name: 'Bộ câu hỏi phỏng vấn' })).toBeInTheDocument()
