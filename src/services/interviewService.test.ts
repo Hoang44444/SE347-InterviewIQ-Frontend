@@ -290,16 +290,58 @@ test('generates questions with a long timeout, sending a body only when count is
   const url = `/interview-session/${id}/questions`
 
   expect(await interviewService.generateQuestions(id)).toEqual(generatedQuestions)
-  await interviewService.generateQuestions(id, 8)
+  await interviewService.generateQuestions(id, { count: 8 })
+  await interviewService.generateQuestions(id, {
+    count: 6,
+    domain: 'TECHNICAL',
+    difficulty: undefined,
+  })
   expect(await interviewService.getSessionQuestions(id)).toEqual(generatedQuestions)
 
   expect(requests.map((request) => [request.method, request.url])).toEqual([
+    ['post', `${url}/generate`],
     ['post', `${url}/generate`],
     ['post', `${url}/generate`],
     ['get', url],
   ])
   expect(requests[0].data).toBeUndefined()
   expect(JSON.parse(requests[1].data)).toEqual({ count: 8 })
+  // trường undefined không được gửi lên
+  expect(JSON.parse(requests[2].data)).toEqual({ count: 6, domain: 'TECHNICAL' })
   expect(requests[0].timeout).toBe(GENERATE_QUESTIONS_TIMEOUT)
-  expect(requests[2].timeout).not.toBe(GENERATE_QUESTIONS_TIMEOUT)
+  expect(requests[3].timeout).not.toBe(GENERATE_QUESTIONS_TIMEOUT)
+})
+
+test('regenerates one question with the long timeout and sends a body only for chosen fields', async () => {
+  const requests: InternalAxiosRequestConfig[] = []
+  apiClient.defaults.adapter = async (config) => {
+    requests.push(config)
+    return {
+      data: { success: true, data: generatedQuestions },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+  const id = generatedQuestions.sessionPublicId
+  const questionId = generatedQuestions.questions[0].publicId
+  const url = `/interview-session/${id}/questions/${questionId}/regenerate`
+
+  expect(await interviewService.regenerateQuestion(id, questionId)).toEqual(generatedQuestions)
+  await interviewService.regenerateQuestion(id, questionId, { difficulty: 'HARD' })
+  await interviewService.regenerateQuestion(id, questionId, {
+    domain: 'BEHAVIORAL',
+    difficulty: 'EASY',
+  })
+
+  expect(requests.map((request) => [request.method, request.url])).toEqual([
+    ['post', url],
+    ['post', url],
+    ['post', url],
+  ])
+  expect(requests[0].data).toBeUndefined()
+  expect(JSON.parse(requests[1].data)).toEqual({ difficulty: 'HARD' })
+  expect(JSON.parse(requests[2].data)).toEqual({ domain: 'BEHAVIORAL', difficulty: 'EASY' })
+  for (const request of requests) expect(request.timeout).toBe(GENERATE_QUESTIONS_TIMEOUT)
 })

@@ -4,6 +4,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 
 import { CreatedSessionContent } from './CreatedSessionContent'
 
+import { ToastProvider } from '@/contexts/ToastProvider'
 import { interviewService } from '@/services/interviewService'
 import { generatedQuestions, session } from '@/test/sessionFixtures'
 import type { InterviewSession } from '@/types/interview'
@@ -15,12 +16,14 @@ function renderContent(jobDescription: string | null) {
   const created: InterviewSession = { ...session, jobDescription }
   render(
     <MemoryRouter>
-      <CreatedSessionContent
-        session={created}
-        onStart={vi.fn()}
-        isStarting={false}
-        startDisabled={false}
-      />
+      <ToastProvider>
+        <CreatedSessionContent
+          session={created}
+          onStart={vi.fn()}
+          isStarting={false}
+          startDisabled={false}
+        />
+      </ToastProvider>
     </MemoryRouter>,
   )
 }
