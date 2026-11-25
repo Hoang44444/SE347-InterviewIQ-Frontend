@@ -1,5 +1,5 @@
 import type { CheatLog, CheatSummary } from '@/types/cheat'
-import type { InterviewSessionStatus } from '@/types/interview'
+import type { InterviewSessionStatus, QuestionDifficulty, QuestionDomain } from '@/types/interview'
 
 /**
  * Một dòng trong danh sách lịch sử (GET /interviews).
@@ -31,6 +31,22 @@ export interface InterviewHistoryCv {
   fileName: string
 }
 
+/** Một câu hỏi của buổi, kèm câu trả lời nếu đã nộp. */
+export interface InterviewHistoryQuestion {
+  /** publicId của câu hỏi. */
+  id: string
+  orderIndex: number
+  content: string
+  domain: QuestionDomain
+  difficulty: QuestionDifficulty
+  answer: {
+    videoUrl: string | null
+    durationSeconds: number | null
+    /** Chuỗi rỗng là câu trả lời không có lời. */
+    transcript: string | null
+  } | null
+}
+
 /**
  * Chi tiết một buổi phỏng vấn (GET /interviews/:id).
  *
@@ -57,7 +73,7 @@ export interface InterviewHistoryDetail {
   score: unknown
   summary: unknown
   /** Luôn là mảng, không bao giờ null. */
-  questions: unknown[]
+  questions: InterviewHistoryQuestion[]
   isFlagged: boolean
   cheatSummary: CheatSummary
   /** Luôn là mảng, sắp theo occurredAt tăng dần. */

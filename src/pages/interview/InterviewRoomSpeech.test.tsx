@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { InterviewRoom } from './InterviewRoomPage'
@@ -8,6 +7,7 @@ import { ToastProvider } from '@/contexts/ToastProvider'
 import { mockMediaDevices } from '@/test/mediaDevices'
 import { roomService } from '@/test/roomService'
 import { FakeRecognition } from '@/test/speechRecognition'
+import { TestRouter } from '@/test/TestRouter'
 
 vi.mock('@/services/faceDetector', () => ({
   createFaceDetector: () => Promise.reject(new Error('Không có detector trong test')),
@@ -42,11 +42,11 @@ function click(name: string) {
 async function openRoom() {
   const service = roomService()
   render(
-    <MemoryRouter>
+    <TestRouter>
       <ToastProvider>
         <InterviewRoom id="session" service={service} />
       </ToastProvider>
-    </MemoryRouter>,
+    </TestRouter>,
   )
   const start = await screen.findByRole('button', { name: 'Bắt đầu phỏng vấn' })
   click('Bật camera và micro')
@@ -182,11 +182,11 @@ test('a browser without speech recognition says so and typing still works', asyn
 
 test('the lobby says the audio may leave the machine for transcription', async () => {
   render(
-    <MemoryRouter>
+    <TestRouter>
       <ToastProvider>
         <InterviewRoom id="session" service={roomService()} />
       </ToastProvider>
-    </MemoryRouter>,
+    </TestRouter>,
   )
   expect(await screen.findByText(/gửi âm thanh tới máy chủ của hãng/)).toBeInTheDocument()
 })

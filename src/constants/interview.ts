@@ -80,3 +80,6 @@ export const DIFFICULTY_TONE: Record<QuestionDifficulty, NonNullable<BadgeProps[
   MEDIUM: 'warning',
   HARD: 'danger',
 }
+
+/** Khoá localStorage nhớ mốc bắt đầu đồng hồ của một phiên, để tải lại trang không về 0. */
+export const roomClockKey = (sessionPublicId: string) => `interviewiq:room_clock:${sessionPublicId}`

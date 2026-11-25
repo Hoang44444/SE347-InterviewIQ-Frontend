@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { InternalAxiosRequestConfig } from 'axios'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { InterviewRoomPage } from './InterviewRoomPage'
@@ -8,6 +8,7 @@ import { InterviewRoomPage } from './InterviewRoomPage'
 import { ToastProvider } from '@/contexts/ToastProvider'
 import { apiClient } from '@/services/apiClient'
 import { mockMediaDevices } from '@/test/mediaDevices'
+import { TestRouter } from '@/test/TestRouter'
 import {
   generatedQuestions,
   roomLoadData,
@@ -59,11 +60,11 @@ function openRoute(status: InterviewSessionStatus = 'IN_PROGRESS') {
   }
   render(
     <ToastProvider>
-      <MemoryRouter initialEntries={[`/interviews/${id}`]}>
+      <TestRouter initialEntries={[`/interviews/${id}`]}>
         <Routes>
           <Route path="/interviews/:id" element={<InterviewRoomPage />} />
         </Routes>
-      </MemoryRouter>
+      </TestRouter>
     </ToastProvider>,
   )
   return requests
