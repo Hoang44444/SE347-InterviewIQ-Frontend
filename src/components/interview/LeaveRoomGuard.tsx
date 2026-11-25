@@ -1,4 +1,5 @@
-import { useBlocker } from 'react-router-dom'
+import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useBlocker, type BlockerFunction } from 'react-router-dom'
 
 import { Button, Modal } from '@/components/ui'
 
@@ -7,9 +8,20 @@ import { Button, Modal } from '@/components/ui'
  * tab do `beforeunload` lo, vì router không chặn được hai việc đó.
  */
 export function LeaveRoomGuard({ when }: { when: boolean }) {
+  /*
+   * useBlocker đăng ký lại hàm chặn trong useEffect, tức sau khi màn hình đã vẽ. Đọc điều
+   * kiện qua ref cập nhật ngay lúc commit để không có khoảng nào router còn dùng giá trị cũ.
+   */
+  const whenRef = useRef(when)
+  useLayoutEffect(() => {
+    whenRef.current = when
+  }, [when])
   const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      when && currentLocation.pathname !== nextLocation.pathname,
+    useCallback<BlockerFunction>(
+      ({ currentLocation, nextLocation }) =>
+        whenRef.current && currentLocation.pathname !== nextLocation.pathname,
+      [],
+    ),
   )
 
   return (
