@@ -83,3 +83,11 @@ test('time derives from timestamps across long gaps without interval ticks', () 
   expect(clock.submitQuestion()).toBe(3600)
   expect(clock.finish().durationSeconds).toBe(3600)
 })
+
+test('a resumed session counts from the remembered start, while the question starts fresh', () => {
+  let now = 100_000
+  const clock = createInterviewClock(() => now)
+  clock.start('one', 40_000)
+  now += 5_000
+  expect(clock.snapshot()).toEqual({ sessionSeconds: 65, questionSeconds: 5 })
+})

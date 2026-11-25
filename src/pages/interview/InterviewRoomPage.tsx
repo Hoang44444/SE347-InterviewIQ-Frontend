@@ -32,6 +32,7 @@ import { useEmotionCollector } from '@/hooks/useEmotionCollector'
 import { useIntegrityMonitor } from '@/hooks/useIntegrityMonitor'
 import { useInterviewRecorder } from '@/hooks/useInterviewRecorder'
 import { useToast } from '@/hooks/useToast'
+import { roomClockKey } from '@/constants/interview'
 import { ROUTES } from '@/routes/paths'
 import { interviewService } from '@/services/interviewService'
 import type { ApiError } from '@/types/api'
@@ -42,6 +43,7 @@ import type {
   Question,
 } from '@/types/interview'
 import { formatDuration } from '@/utils/format'
+import { storage } from '@/utils/storage'
 
 /* Lưu ý ở phòng chờ: không phải các bước tuần tự nên dùng dấu tích, không đánh số. */
 const LOBBY_NOTES = [
@@ -52,6 +54,18 @@ const LOBBY_NOTES = [
   'Trong lúc phỏng vấn, hệ thống ghi nhận rời tab, thoát toàn màn hình và phân tích hình camera ngay trên máy bạn (không có mặt, nhiều người, nhìn đi chỗ khác) để người xem xét. Hình không bị gửi đi để phân tích; chỉ loại và thời điểm cảnh báo được lưu vào lịch sử của bạn.',
   'Máy bạn cũng tính một bản tóm tắt nét mặt cho mỗi câu (tỉ lệ thời gian tích cực, bình thản, ngạc nhiên và mức nhìn đi chỗ khác) gửi kèm câu trả lời để hỗ trợ chấm điểm sự tự tin. Chỉ có các con số, không có hình ảnh; đây chỉ là tín hiệu tham khảo.',
 ]
+
+/**
+ * Mốc đồng hồ để làm tiếp một phiên: ưu tiên mốc đã nhớ trên máy này. Máy khác (hoặc
+ * đã xoá storage) mà phiên có câu đã nộp thì dùng mốc của server.
+ */
+function rememberedStart(id: string, { startedAt }: Interview, hasAnswers: boolean) {
+  if (!startedAt) return null
+  const stored = storage.get<unknown>(roomClockKey(id))
+  if (typeof stored === 'number' && stored > 0 && stored <= Date.now()) return stored
+  const server = Date.parse(startedAt)
+  return hasAnswers && Number.isFinite(server) ? Math.min(server, Date.now()) : null
+}
 
 export function InterviewRoomPage() {
   const { id = '' } = useParams<{ id: string }>()
@@ -90,7 +104,9 @@ export function InterviewRoom({
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   /** Câu trả lời đã gửi thành công, dùng để đánh dấu tiến độ và xem tổng kết. */
   const answerSubmission = useAnswerSubmission(id, service)
-  const { savedAnswers } = answerSubmission
+  const { savedAnswers, restore: restoreAnswers } = answerSubmission
+  /** Mốc đồng hồ của lần vào phòng trước; null khi đây là lần đầu. */
+  const [resumeFrom, setResumeFrom] = useState<number | null>(null)
   const [answerDurations, setAnswerDurations] = useState<Record<string, number>>({})
   const [isFinalizing, setIsFinalizing] = useState(false)
   // Ref khoá ngay cả hai click/Ctrl+Enter trước khi React kịp render disabled.
@@ -131,9 +147,21 @@ export function InterviewRoom({
       .then(([detail, list]) => {
         if (!active) return
 
+        const restored = detail.savedAnswers ?? []
+        const answered = new Set(restored.map((answer) => answer.questionPublicId))
+        const firstOpen = list.findIndex((question) => !answered.has(question.id))
+
         setInterview(detail)
         setQuestions(list)
-        setCurrentIndex(0)
+        setCurrentIndex(firstOpen === -1 ? Math.max(0, list.length - 1) : firstOpen)
+        restoreAnswers(restored)
+        setDrafts((previous) => ({
+          ...Object.fromEntries(
+            restored.map((answer) => [answer.questionPublicId, answer.transcript]),
+          ),
+          ...previous,
+        }))
+        setResumeFrom(rememberedStart(id, detail, restored.length > 0))
       })
       .catch((err: ApiError) => {
         if (active) setLoadError(err.message)
@@ -145,7 +173,12 @@ export function InterviewRoom({
     return () => {
       active = false
     }
-  }, [id, reloadToken, service])
+  }, [id, reloadToken, service, restoreAnswers])
+
+  // Nộp xong thì phiên đã đóng, không còn gì để vào lại.
+  useEffect(() => {
+    if (submission) storage.remove(roomClockKey(id))
+  }, [id, submission])
 
   const currentQuestion = questions[currentIndex]
   const currentDraft = currentQuestion ? (drafts[currentQuestion.id] ?? '') : ''
@@ -171,6 +204,8 @@ export function InterviewRoom({
     onChange: (questionId, text) => setDrafts((previous) => ({ ...previous, [questionId]: text })),
   })
   const answeredIds = useMemo(() => new Set(Object.keys(savedAnswers)), [savedAnswers])
+  const answeredCount = questions.filter((question) => answeredIds.has(question.id)).length
+  const isResuming = resumeFrom !== null || answeredCount > 0
 
   const hasUnsaved = questions.some(
     (question) => (drafts[question.id] ?? '').trim() !== '' && !answeredIds.has(question.id),
@@ -222,7 +257,9 @@ export function InterviewRoom({
   function handleStart() {
     // Đồng hồ chỉ chạy khi camera và micro đã sẵn sàng ở phòng chờ.
     if (!currentQuestion || isStarted || actionRef.current || recorder.status !== 'ready') return
-    clock.start(currentQuestion.id)
+    const startedAt = resumeFrom ?? Date.now()
+    clock.start(currentQuestion.id, startedAt)
+    if (interview?.startedAt) storage.set(roomClockKey(id), startedAt)
     setIsStarted(true)
     // Toàn màn hình giúp phát hiện việc rời phòng; từ chối cũng không sao.
     void document.documentElement.requestFullscreen?.().catch(() => {})
@@ -500,9 +537,11 @@ export function InterviewRoom({
                   <h3 className="font-medium text-content">
                     Câu {index + 1}: {question.content}
                   </h3>
-                  <p className="text-sm text-content-subtle">
-                    Thời gian trả lời: {formatDuration(answerDurations[question.id] ?? 0)}
-                  </p>
+                  {answerDurations[question.id] !== undefined && (
+                    <p className="text-sm text-content-subtle">
+                      Thời gian trả lời: {formatDuration(answerDurations[question.id])}
+                    </p>
+                  )}
                   <p className="text-sm text-content-subtle">
                     Thời lượng video: {formatDuration(answer.durationSeconds)}
                   </p>
@@ -650,6 +689,15 @@ export function InterviewRoom({
                   </div>
                 </div>
 
+                {isResuming && (
+                  <p className="rounded-control bg-brand-50 px-4 py-3 text-sm text-brand-700">
+                    {answeredCount === questions.length
+                      ? `Đã nộp đủ ${questions.length} câu. Bấm Tiếp tục để nộp bài phỏng vấn.`
+                      : `Bạn đã nộp ${answeredCount}/${questions.length} câu và sẽ làm tiếp từ câu ${currentIndex + 1}.`}{' '}
+                    Đồng hồ tính cả thời gian bạn rời phòng.
+                  </p>
+                )}
+
                 <ul className="flex flex-col gap-3 text-sm text-content-muted">
                   {LOBBY_NOTES.map((note) => (
                     <li key={note} className="flex gap-2">
@@ -667,7 +715,7 @@ export function InterviewRoom({
 
                 <div>
                   <Button size="lg" fullWidth onClick={handleStart} disabled={!isReady}>
-                    Bắt đầu phỏng vấn
+                    {isResuming ? 'Tiếp tục phỏng vấn' : 'Bắt đầu phỏng vấn'}
                   </Button>
                   {!isReady && (
                     <p className="mt-2 text-sm text-content-subtle">
@@ -685,7 +733,8 @@ export function InterviewRoom({
           phase={isStarted ? 'room' : 'lobby'}
           questionId={currentQuestion.id}
           questionNumber={currentIndex + 1}
-          disabled={isBusy || isAnswered || answerSubmission.blocked}
+          // Ở phòng chờ câu đang mở có thể đã nộp (vào lại phòng) mà vẫn cần bật camera.
+          disabled={isBusy || (isStarted && isAnswered) || answerSubmission.blocked}
           className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1"
           statusSlot={
             isStarted && !isFinished ? (

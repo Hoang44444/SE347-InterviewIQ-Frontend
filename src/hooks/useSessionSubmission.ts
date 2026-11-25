@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 
 import type { ApiError } from '@/types/api'
 import type {
-  Answer,
   InterviewRoomService,
   InterviewSessionTiming,
+  SavedAnswer,
   SubmitInterviewSessionPayload,
   SubmitInterviewSessionResult,
 } from '@/types/interview'
@@ -13,7 +13,7 @@ import type { createInterviewClock } from '@/utils/interviewClock'
 interface SubmissionEligibility {
   cvPublicId?: string
   questionIds: string[]
-  savedAnswers: Record<string, Answer>
+  savedAnswers: Record<string, SavedAnswer>
   isPending: boolean
 }
 

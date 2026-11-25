@@ -31,7 +31,7 @@ Do not call Axios directly from pages or components. Route every request through
 
 ## Application Startup and Routing
 
-`src/main.tsx` mounts the application and loads global CSS. `App.tsx` composes providers in this order: `ToastProvider → AuthProvider → BrowserRouter`. `AppRoutes.tsx` separates routes into three groups:
+`src/main.tsx` mounts the application and loads global CSS. `App.tsx` composes providers in this order: `ToastProvider → AuthProvider → RouterProvider`. The router is a data router (so the interview room can use `useBlocker`) with a single catch-all route that renders `AppRoutes`. Tests that render the room use `TestRouter` from `src/test/`. `AppRoutes.tsx` separates routes into three groups:
 
 - Public routes use `MainLayout`.
 - Login and registration routes use `AuthLayout`.
@@ -79,11 +79,25 @@ timestamps. Room details must include the CV public ID associated with the sessi
 Missing CV metadata produces an error instead of falsely showing a saved summary.
 The demo implements the same service method locally without a server request.
 
-Room loading still uses `/interviews/:id` and `/interviews/:id/questions`; backend
-read API alignment remains a separate dependency. The first of those URLs now belongs
-to the interview-history module and returns a different shape (see _Interview
-History_ below), and the second has no backend endpoint. Live server persistence has not
-been validated by the demo or mocked browser checks.
+The room loads its title and CV from `GET /interviews/:id` and its questions from
+`GET /interview-session/:id/questions`.
+
+### Resuming and leaving
+
+The same detail response lists saved answers, so entering an in-progress session
+again restores them: the room opens at the first unanswered question, and answers
+without a video count as unanswered. The server cannot supply per-question answer
+durations, so restored answers show none. Drafts and unsubmitted recordings are not
+restored.
+
+The session clock start is remembered in `localStorage`
+(`interviewiq:room_clock:<sessionId>`) and removed after submission, so a reload
+keeps counting, including the time away. Without it (another browser) a session with
+saved answers counts from the server `startedAt`; one without starts from zero. The
+demo room has no `startedAt` and remembers nothing.
+
+While there is unsubmitted work, `beforeunload` covers reload and tab close, and
+`LeaveRoomGuard` asks before an in-app route change, including the Back button.
 
 `useAnswerSubmission` requests signed parameters from
 `POST /interview-session/:id/questions/:questionId/answer/signed-params`, uploads
@@ -216,7 +230,8 @@ unmount, and the panel is removed from production builds.
   Unsubmitted recordings exist only in room memory; successfully submitted videos
   are stored by Cloudinary and linked by the backend answer response. Reloading
   or leaving destroys local recordings. The tab-close warning covers unfinished
-  sessions and unsaved text/video; it is removed after successful submission.
+  sessions and unsaved text/video; it is removed after successful submission, and
+  in-app route changes ask first (see _Resuming and leaving_).
 - Each Blob has an object URL, revoked when replaced or when the room unmounts.
   Cleanup removes recorder/track listeners, settles pending stop promises,
   invalidates permission requests, and stops tracks safely under StrictMode.

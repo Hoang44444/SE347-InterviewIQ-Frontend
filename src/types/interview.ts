@@ -64,6 +64,10 @@ export interface Interview {
   position?: string
   /** CV gắn với session, cần khi nộp session để chấm điểm. */
   cvPublicId?: string
+  /** Mốc server bắt đầu phiên. Vắng ở phòng demo: phòng đó không khôi phục gì sau khi tải lại. */
+  startedAt?: string
+  /** Câu trả lời đã lưu từ trước, dùng khi vào lại phòng. */
+  savedAnswers?: SavedAnswer[]
 }
 
 export interface Answer {
@@ -76,6 +80,12 @@ export interface Answer {
   createdAt: string
   updatedAt: string
 }
+
+/** Phần của một câu trả lời đã lưu mà phòng cần; đọc lại từ backend chỉ có chừng này. */
+export type SavedAnswer = Pick<
+  Answer,
+  'questionPublicId' | 'videoUrl' | 'transcript' | 'durationSeconds'
+>
 
 export interface InterviewRecordingSignedParams {
   uploadUrl: string

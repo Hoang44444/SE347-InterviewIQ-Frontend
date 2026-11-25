@@ -100,7 +100,26 @@ export const interviewService = {
   /** Thông tin phòng phỏng vấn, lấy từ API chi tiết của module lịch sử. */
   async getById(id: string): Promise<Interview> {
     const detail = await interviewHistoryService.getById(id)
-    return { id: detail.id, title: detail.title, cvPublicId: detail.cv?.id }
+    const savedAnswers = detail.questions.flatMap(({ id: questionPublicId, answer }) =>
+      // Không có video thì coi như chưa trả lời, để người dùng ghi lại được.
+      answer?.videoUrl
+        ? [
+            {
+              questionPublicId,
+              videoUrl: answer.videoUrl,
+              transcript: answer.transcript ?? '',
+              durationSeconds: answer.durationSeconds ?? 0,
+            },
+          ]
+        : [],
+    )
+    return {
+      id: detail.id,
+      title: detail.title,
+      cvPublicId: detail.cv?.id,
+      startedAt: detail.startedAt ?? undefined,
+      savedAnswers,
+    }
   },
 
   /** Bộ câu hỏi của phiên theo đúng thứ tự, đổi về dạng phòng phỏng vấn dùng. */

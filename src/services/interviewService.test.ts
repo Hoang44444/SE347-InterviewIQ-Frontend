@@ -362,8 +362,35 @@ test('room info comes from the interview detail, keeping the CV needed to submit
     id: sessionDetail.id,
     title: sessionDetail.title,
     cvPublicId: sessionDetail.cv!.id,
+    startedAt: sessionDetail.startedAt,
+    savedAnswers: [],
   })
   expect(requests[0].url).toBe(`/interviews/${sessionDetail.id}`)
+})
+
+test('room info carries the answers already saved, skipping ones without a video', async () => {
+  const question = { orderIndex: 1, content: 'Q', domain: 'TECHNICAL', difficulty: 'EASY' }
+  respondWith({
+    ...sessionDetail,
+    questions: [
+      {
+        ...question,
+        id: 'a',
+        answer: { videoUrl: 'https://v/a.webm', durationSeconds: 9, transcript: 'xin chào' },
+      },
+      { ...question, id: 'b', answer: null },
+      { ...question, id: 'c', answer: { videoUrl: null, durationSeconds: null, transcript: null } },
+    ],
+  })
+
+  expect((await interviewService.getById(sessionDetail.id)).savedAnswers).toEqual([
+    {
+      questionPublicId: 'a',
+      videoUrl: 'https://v/a.webm',
+      durationSeconds: 9,
+      transcript: 'xin chào',
+    },
+  ])
 })
 
 test('room info has no CV id when the CV was deleted', async () => {

@@ -1,22 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { validateInterviewVideo } from '@/services/interviewVideoUpload'
 import type { ApiError } from '@/types/api'
 import type { EmotionSummary } from '@/types/emotion'
-import type { Answer, InterviewRoomService } from '@/types/interview'
+import type { Answer, InterviewRoomService, SavedAnswer } from '@/types/interview'
 import type { InterviewRecording } from '@/types/recording'
 
 export type AnswerSubmissionPhase = 'idle' | 'uploading' | 'saving'
 
 export function useAnswerSubmission(id: string, service: InterviewRoomService) {
   const [phase, setPhase] = useState<AnswerSubmissionPhase>('idle')
-  const [savedAnswers, setSavedAnswers] = useState<Record<string, Answer>>({})
+  const [savedAnswers, setSavedAnswers] = useState<Record<string, SavedAnswer>>({})
   const [blocked, setBlocked] = useState(false)
   const [error, setError] = useState('')
   const activeRef = useRef(false)
   const pendingRef = useRef(false)
   const blockedRef = useRef(false)
-  const savedRef = useRef<Record<string, Answer>>({})
+  const savedRef = useRef<Record<string, SavedAnswer>>({})
   const assetsRef = useRef(new Map<string, { blob: Blob; publicId: string }>())
 
   useEffect(() => {
@@ -24,6 +24,13 @@ export function useAnswerSubmission(id: string, service: InterviewRoomService) {
     return () => {
       activeRef.current = false
     }
+  }, [])
+
+  /** Nạp các câu đã lưu từ trước khi vào lại phòng; câu vừa lưu trong lần này được ưu tiên. */
+  const restore = useCallback((answers: SavedAnswer[]) => {
+    const restored = Object.fromEntries(answers.map((answer) => [answer.questionPublicId, answer]))
+    savedRef.current = { ...restored, ...savedRef.current }
+    setSavedAnswers(savedRef.current)
   }, [])
 
   async function save(
@@ -89,5 +96,5 @@ export function useAnswerSubmission(id: string, service: InterviewRoomService) {
     }
   }
 
-  return { phase, savedAnswers, blocked, error, save }
+  return { phase, savedAnswers, blocked, error, save, restore }
 }
