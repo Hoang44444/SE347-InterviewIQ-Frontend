@@ -3,10 +3,11 @@ import { afterEach, expect, test, vi } from 'vitest'
 
 import { useIntegrityMonitor } from './useIntegrityMonitor'
 
+import { createFaceDetector } from '@/services/faceDetector'
 import type { CheatLogService, CheatSummary } from '@/types/cheat'
 
 vi.mock('@/services/faceDetector', () => ({
-  createFaceDetector: () => Promise.reject(new Error('no wasm in tests')),
+  createFaceDetector: vi.fn(() => Promise.reject(new Error('no wasm in tests'))),
 }))
 
 class FakeTrack extends EventTarget {
@@ -44,6 +45,33 @@ test('records leaving and returning to the tab with a duration and the current q
   })
   expect(result.current.events[0].endedAt).toBeDefined()
   expect(result.current.events[0].durationMs).toBeGreaterThanOrEqual(0)
+})
+
+test('hands every face observation to onObservation so others can share the one detector', async () => {
+  vi.useFakeTimers()
+  // jsdom không phát video: giả lập khung hình đã sẵn sàng để vòng nhận diện chạy.
+  const readyState = vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(4)
+  const videoWidth = vi.spyOn(HTMLVideoElement.prototype, 'videoWidth', 'get').mockReturnValue(640)
+  try {
+    const observation = { time: 1, faceCount: 1, yawDeg: 0, pitchDeg: 0 }
+    const detect = vi.fn(() => observation)
+    vi.mocked(createFaceDetector).mockResolvedValueOnce({ detect, close: vi.fn() })
+    const onObservation = vi.fn()
+    const { stream } = fakeStream()
+    renderHook(() => useIntegrityMonitor({ enabled: true, stream, onObservation }))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(detect).toHaveBeenCalledTimes(2)
+    expect(onObservation).toHaveBeenCalledTimes(2)
+    expect(onObservation).toHaveBeenCalledWith(observation)
+  } finally {
+    readyState.mockRestore()
+    videoWidth.mockRestore()
+  }
 })
 
 test('records nothing while disabled', () => {

@@ -5,7 +5,41 @@ import { useAnswerSubmission } from './useAnswerSubmission'
 
 import { answer, deferred, recording, signedParams } from '@/test/interviewFixtures'
 import { roomService } from '@/test/roomService'
+import type { EmotionSummary } from '@/types/emotion'
 import type { Answer } from '@/types/interview'
+
+const emotionSummary: EmotionSummary = {
+  sampleIntervalMs: 2000,
+  sampleCount: 3,
+  validSampleCount: 3,
+  distribution: { neutral: 0.67, positive: 0.33 },
+  gazeAwayRatio: 0,
+  dominant: 'neutral',
+  timeline: [{ t: 0, state: 'neutral', gazeAway: false }],
+}
+
+test('sends the emotion summary with the answer, and leaves it out when there is none', async () => {
+  const service = roomService()
+  const { result } = renderHook(() => useAnswerSubmission('session', service))
+  await act(async () => {
+    await result.current.save('one', 'text', recording(), emotionSummary)
+  })
+  expect(service.submitAnswer).toHaveBeenLastCalledWith('session', 'one', {
+    cloudinaryPublicId: signedParams.cloudinaryPublicId,
+    transcript: 'text',
+    emotionSummary,
+  })
+
+  const other = roomService()
+  const second = renderHook(() => useAnswerSubmission('session', other))
+  await act(async () => {
+    await second.result.current.save('one', 'text', recording(), null)
+  })
+  expect(other.submitAnswer).toHaveBeenLastCalledWith('session', 'one', {
+    cloudinaryPublicId: signedParams.cloudinaryPublicId,
+    transcript: 'text',
+  })
+})
 
 test('keeps uploaded asset for a failed PUT and changed transcript, saves full response', async () => {
   const service = roomService()

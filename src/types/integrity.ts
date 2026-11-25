@@ -1,3 +1,5 @@
+import type { Blendshapes } from '@/types/emotion'
+
 /** Loại tín hiệu nghi vấn trong lúc phỏng vấn; giai đoạn 1 chỉ ghi nhận, chưa kết luận gian lận. */
 export type IntegrityEventType =
   | 'TAB_HIDDEN'
@@ -34,6 +36,8 @@ export interface FaceObservation {
   /** Độ lệch đầu quanh trục dọc/ngang so với nhìn thẳng; null khi không đo được. */
   yawDeg: number | null
   pitchDeg: number | null
+  /** Điểm blendshape của khuôn mặt duy nhất trong khung hình; vắng khi 0 hoặc nhiều mặt. */
+  blendshapes?: Blendshapes
 }
 
 export type FaceDetectorState = 'idle' | 'loading' | 'ready' | 'unavailable'
