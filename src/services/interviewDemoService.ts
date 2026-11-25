@@ -7,28 +7,28 @@ const interview: Interview = {
   id: 'demo',
   title: 'Phòng phỏng vấn mẫu',
   position: 'Frontend Developer',
-  status: 'in_progress',
-  questionCount: 3,
-  createdAt: '2026-09-29T00:00:00.000Z',
   cvPublicId: 'demo-cv',
 }
 
 const questions: Question[] = [
   {
     id: 'demo-question-1',
-    kind: 'behavioral',
+    domain: 'BEHAVIORAL',
+    difficulty: 'EASY',
     content: 'Giới thiệu bản thân và một dự án bạn tự hào nhất.',
     suggestedSeconds: 120,
   },
   {
     id: 'demo-question-2',
-    kind: 'technical',
+    domain: 'TECHNICAL',
+    difficulty: 'MEDIUM',
     content: 'Bạn quản lý state và xử lý dữ liệu bất đồng bộ trong React như thế nào?',
     suggestedSeconds: 180,
   },
   {
     id: 'demo-question-3',
-    kind: 'behavioral',
+    domain: 'SITUATIONAL',
+    difficulty: 'MEDIUM',
     content: 'Kể về một lỗi khó bạn từng gặp và cách bạn tìm ra nguyên nhân.',
     suggestedSeconds: 120,
   },
@@ -40,6 +40,7 @@ export function createInterviewDemoService(): InterviewRoomService {
   const answers = new Map<string, Answer>()
   const jobs = new Map<string, number>()
   let submitted = false
+  const startedAt = new Date().toISOString()
   function requireOpen() {
     if (submitted) throw { status: 409, message: 'Session demo đã nộp.' }
   }
@@ -102,7 +103,7 @@ export function createInterviewDemoService(): InterviewRoomService {
         jobId,
         sessionId: 'demo',
         status: completed ? 'COMPLETED' : 'PROCESSING',
-        createdAt: interview.createdAt,
+        createdAt: startedAt,
         completedAt: completed ? new Date().toISOString() : null,
       }
     },

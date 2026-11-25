@@ -8,7 +8,7 @@ import { interviewService } from './interviewService'
 import { API_URL, STORAGE_KEYS } from '@/constants'
 import { GENERATE_QUESTIONS_TIMEOUT } from '@/constants/interview'
 import { answer, signedParams } from '@/test/interviewFixtures'
-import { generatedQuestions } from '@/test/sessionFixtures'
+import { generatedQuestions, sessionDetail } from '@/test/sessionFixtures'
 import { storage } from '@/utils/storage'
 
 test('lists session pages and starts without a body using the authenticated client and envelope', async () => {
@@ -302,4 +302,46 @@ test('generates questions with a long timeout, sending a body only when count is
   expect(JSON.parse(requests[1].data)).toEqual({ count: 8 })
   expect(requests[0].timeout).toBe(GENERATE_QUESTIONS_TIMEOUT)
   expect(requests[2].timeout).not.toBe(GENERATE_QUESTIONS_TIMEOUT)
+})
+
+function respondWith(data: unknown) {
+  const requests: InternalAxiosRequestConfig[] = []
+  apiClient.defaults.adapter = async (config) => {
+    requests.push(config)
+    return { data: { success: true, data }, status: 200, statusText: 'OK', headers: {}, config }
+  }
+  return requests
+}
+
+test('room info comes from the interview detail, keeping the CV needed to submit', async () => {
+  const requests = respondWith(sessionDetail)
+
+  expect(await interviewService.getById(sessionDetail.id)).toEqual({
+    id: sessionDetail.id,
+    title: sessionDetail.title,
+    cvPublicId: sessionDetail.cv!.id,
+  })
+  expect(requests[0].url).toBe(`/interviews/${sessionDetail.id}`)
+})
+
+test('room info has no CV id when the CV was deleted', async () => {
+  respondWith({ ...sessionDetail, cv: null })
+
+  expect((await interviewService.getById(sessionDetail.id)).cvPublicId).toBeUndefined()
+})
+
+test('room questions come from the session question set, in order and keyed by publicId', async () => {
+  const [first, second] = generatedQuestions.questions
+  const requests = respondWith({ ...generatedQuestions, questions: [second, first] })
+  const id = generatedQuestions.sessionPublicId
+
+  expect(await interviewService.getQuestions(id)).toEqual(
+    [first, second].map(({ publicId, content, domain, difficulty }) => ({
+      id: publicId,
+      content,
+      domain,
+      difficulty,
+    })),
+  )
+  expect(requests[0].url).toBe(`/interview-session/${id}/questions`)
 })

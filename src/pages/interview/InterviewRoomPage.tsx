@@ -51,7 +51,14 @@ export function InterviewRoomPage() {
   const { id = '' } = useParams<{ id: string }>()
   const { state } = useLocation()
   const session = (state as InterviewRoomLocationState | null)?.session
-  return <InterviewSessionRoom key={id} id={id} knownSession={session} />
+  return (
+    <InterviewSessionRoom
+      key={id}
+      id={id}
+      knownSession={session}
+      liveRoom={<InterviewRoom id={id} />}
+    />
+  )
 }
 
 export function InterviewRoom({
@@ -431,10 +438,12 @@ export function InterviewRoom({
                 {formatDuration(sessionTiming?.durationSeconds ?? 0)}
               </dd>
             </div>
-            <div>
-              <dt className="text-sm text-content-subtle">Vị trí</dt>
-              <dd className="mt-1 text-2xl font-semibold text-content">{interview.position}</dd>
-            </div>
+            {interview.position && (
+              <div>
+                <dt className="text-sm text-content-subtle">Vị trí</dt>
+                <dd className="mt-1 text-2xl font-semibold text-content">{interview.position}</dd>
+              </div>
+            )}
           </dl>
 
           <Stack direction="row" gap="sm" className="mt-8">
@@ -501,10 +510,11 @@ export function InterviewRoom({
     )
   }
 
-  const totalMinutes = Math.max(
-    1,
-    Math.round(questions.reduce((sum, question) => sum + question.suggestedSeconds, 0) / 60),
+  const suggestedTotal = questions.reduce(
+    (sum, question) => sum + (question.suggestedSeconds ?? 0),
+    0,
   )
+  const totalMinutes = suggestedTotal > 0 ? Math.max(1, Math.round(suggestedTotal / 60)) : 0
   const isReady = recorder.status === 'ready'
   const isAnswered = answeredIds.has(currentQuestion.id)
   const isLastAnswered = isAnswered && currentIndex === questions.length - 1
@@ -595,7 +605,8 @@ export function InterviewRoom({
                   <div>
                     <h2 className="text-xl font-semibold text-content">Phòng chờ</h2>
                     <p className="mt-1 text-sm text-content-muted">
-                      {questions.length} câu hỏi, khoảng {totalMinutes} phút
+                      {questions.length} câu hỏi
+                      {totalMinutes > 0 && `, khoảng ${totalMinutes} phút`}
                     </p>
                   </div>
                 </div>
