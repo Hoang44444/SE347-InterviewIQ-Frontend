@@ -74,6 +74,12 @@ export function useIntegrityMonitor({
     }
   }, [sessionId, cheatLogs])
 
+  // Kênh realtime mở suốt lúc ở trong phòng, kể cả sau khi nộp bài (log trễ vẫn được nhận).
+  useEffect(() => {
+    if (!sessionId || !cheatLogs?.connect) return
+    return cheatLogs.connect()
+  }, [sessionId, cheatLogs])
+
   const retryTimersRef = useRef(new Set<number>())
 
   // Rời phòng thì thôi gửi lại. Cố ý không phụ thuộc `enabled`: nộp bài xong vẫn được
@@ -88,13 +94,16 @@ export function useIntegrityMonitor({
 
   /**
    * Gửi một sự kiện lên backend nếu loại đó được hỗ trợ; không chờ và không báo lỗi.
-   * Lỗi tạm thời thì gửi lại theo lịch, giữ nguyên `occurredAt` gốc.
+   * Lỗi tạm thời thì gửi lại theo lịch, giữ nguyên `occurredAt` và `clientEventId`
+   * gốc để backend nhận ra là cùng một sự kiện.
    */
   const report = useCallback((type: IntegrityEventType, startedAt: string) => {
     const eventType = INTEGRITY_TO_CHEAT_EVENT[type]
     const { sessionId: id, cheatLogs: api } = cheatRef.current
     if (!eventType || !id || !api) return
+    // Sinh một lần cho mỗi sự kiện, ngoài `send`: các lần gửi lại dùng chung id này.
     const payload = {
+      clientEventId: crypto.randomUUID(),
       eventType,
       occurredAt: startedAt,
       description: CHEAT_EVENT_LABEL[eventType],

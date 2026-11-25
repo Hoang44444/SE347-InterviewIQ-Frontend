@@ -138,6 +138,9 @@ test('sends a supported event once with its start time and keeps the returned co
 
   expect(cheatLogs.record).toHaveBeenCalledTimes(1)
   expect(cheatLogs.record).toHaveBeenCalledWith('s1', {
+    clientEventId: expect.stringMatching(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    ),
     eventType: 'TAB_SWITCH',
     occurredAt: result.current.events[0].startedAt,
     description: 'Rời tab phỏng vấn',
@@ -205,7 +208,20 @@ test('retries a transient failure after 2s with the same occurredAt and keeps th
 
   expect(record).toHaveBeenCalledTimes(2)
   expect(record.mock.calls[1][1].occurredAt).toBe(record.mock.calls[0][1].occurredAt)
+  expect(record.mock.calls[1][1].clientEventId).toBe(record.mock.calls[0][1].clientEventId)
   expect(result.current.summary?.totalCount).toBe(1)
+})
+
+test('uses a new clientEventId for each new event', async () => {
+  const record = vi.fn().mockResolvedValue({ log: {}, summary: summaryOf(1) })
+  const cheatLogs = fakeCheatLogs({ record })
+  renderHook(() => useIntegrityMonitor({ enabled: true, stream: null, sessionId: 's1', cheatLogs }))
+  await act(async () => setVisibility('hidden'))
+  await act(async () => setVisibility('visible'))
+  await act(async () => setVisibility('hidden'))
+
+  expect(record).toHaveBeenCalledTimes(2)
+  expect(record.mock.calls[1][1].clientEventId).not.toBe(record.mock.calls[0][1].clientEventId)
 })
 
 test('does not retry a client error such as 409', async () => {
@@ -254,4 +270,16 @@ test('keeps retrying after monitoring is disabled but stops on unmount', async (
     await vi.advanceTimersByTimeAsync(300_000)
   })
   expect(record).toHaveBeenCalledTimes(2)
+})
+
+test('opens the realtime channel for the session and closes it on unmount', () => {
+  const disconnect = vi.fn()
+  const cheatLogs = fakeCheatLogs({ connect: vi.fn(() => disconnect) })
+  const { unmount } = renderHook(() =>
+    useIntegrityMonitor({ enabled: true, stream: null, sessionId: 's1', cheatLogs }),
+  )
+  expect(cheatLogs.connect).toHaveBeenCalledTimes(1)
+  expect(disconnect).not.toHaveBeenCalled()
+  unmount()
+  expect(disconnect).toHaveBeenCalledTimes(1)
 })
