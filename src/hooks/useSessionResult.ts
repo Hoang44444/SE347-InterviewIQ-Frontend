@@ -8,11 +8,12 @@ import type { SessionResult } from '@/types/scoring'
 const NO_RESULT_STATUSES = [400, 403, 404]
 
 /**
- * Điểm và nhận xét của một buổi phỏng vấn, tải riêng khỏi chi tiết lịch sử.
+ * Điểm, nhận xét chi tiết, metadata mô hình và dòng thời gian biểu cảm của một buổi
+ * phỏng vấn từ Scoring module (`GET /scoring/sessions/:id/result`).
  *
- * API lịch sử đã chừa sẵn field score và summary nhưng hiện luôn trả null; trong
- * lúc Scoring module chưa đổ dữ liệu vào đó, trang chi tiết lấy trực tiếp từ
- * endpoint của Scoring. Khi detail.score có dữ liệu thật thì bỏ hook này.
+ * API lịch sử (`GET /interviews/:id`) chỉ trả điểm và nhận xét cơ bản (không có
+ * `emotionTimeline`, `scoringModel`, `promptVersion`), nên trang chi tiết luôn dùng
+ * endpoint này khi buổi đã `COMPLETED`.
  *
  * enabled là false thì không gọi gì: chỉ buổi đã hoàn thành mới có kết quả, gọi
  * cho buổi đang dở chỉ nhận về 400.

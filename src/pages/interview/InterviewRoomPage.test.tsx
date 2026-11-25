@@ -14,18 +14,18 @@ beforeEach(() => {
   mockMediaDevices()
 })
 
-function renderLobby(service: InterviewRoomService) {
+function renderLobby(service: InterviewRoomService, id = 'session') {
   return render(
     <TestRouter>
       <ToastProvider>
-        <InterviewRoom id="session" service={service} />
+        <InterviewRoom id={id} service={service} />
       </ToastProvider>
     </TestRouter>,
   )
 }
 /** Phòng chờ: bật camera và micro trước, nút bắt đầu chỉ mở khi thiết bị sẵn sàng. */
-async function openRoom(service: InterviewRoomService) {
-  const view = renderLobby(service)
+async function openRoom(service: InterviewRoomService, id = 'session') {
+  const view = renderLobby(service, id)
   const start = await screen.findByRole('button', { name: 'Bắt đầu phỏng vấn' })
   expect(start).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: 'Bật camera và micro' }))
@@ -207,4 +207,64 @@ test('pending device permission in the room can be canceled while notes stay edi
   for (const track of lateTracks) expect(track.stop).toHaveBeenCalled()
   expect(screen.getByRole('textbox')).toHaveValue('draft during permission')
   expect(service.getAnswerSignedParams).not.toHaveBeenCalled()
+})
+
+test('links to history detail when a real UUID session completes', async () => {
+  const realId = '3f1c2b9e-8a4d-4f6b-9c1e-2d7a5b0e4f11'
+  const realService = roomService()
+  vi.mocked(realService.getScoringJobStatus).mockResolvedValue({
+    jobId: 'job',
+    sessionId: realId,
+    status: 'COMPLETED',
+    createdAt: '2026-10-12',
+    completedAt: '2026-10-12',
+  })
+
+  await openRoom(realService, realId)
+  await saveVideo()
+  await screen.findByRole('heading', { name: 'Second question' })
+  await saveVideo()
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Nộp bài phỏng vấn' })).toBeEnabled(),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Nộp bài phỏng vấn' }))
+  fireEvent.click(
+    within(screen.getByRole('dialog', { name: 'Nộp bài phỏng vấn để chấm điểm' })).getByRole(
+      'button',
+      { name: 'Xác nhận nộp' },
+    ),
+  )
+
+  const link = await screen.findByRole('link', { name: 'Xem kết quả chi tiết' })
+  expect(link).toHaveAttribute('href', `/history/${realId}`)
+})
+
+test('omits the history detail link when the demo room completes scoring', async () => {
+  const demoService = roomService()
+  vi.mocked(demoService.getScoringJobStatus).mockResolvedValue({
+    jobId: 'job',
+    sessionId: 'demo',
+    status: 'COMPLETED',
+    createdAt: '2026-10-12',
+    completedAt: '2026-10-12',
+  })
+
+  await openRoom(demoService, 'demo')
+  await saveVideo()
+  await screen.findByRole('heading', { name: 'Second question' })
+  await saveVideo()
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Nộp bài phỏng vấn' })).toBeEnabled(),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Nộp bài phỏng vấn' }))
+  fireEvent.click(
+    within(screen.getByRole('dialog', { name: 'Nộp bài phỏng vấn để chấm điểm' })).getByRole(
+      'button',
+      { name: 'Xác nhận nộp' },
+    ),
+  )
+
+  expect(await screen.findByText('Đã chấm điểm xong')).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: 'Xem kết quả chi tiết' })).not.toBeInTheDocument()
+  expect(screen.getByText(/Phiên demo đã chấm xong/)).toBeInTheDocument()
 })

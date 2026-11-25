@@ -167,14 +167,7 @@ one (`onDelete: SetNull`) and says so. A 404 covers both "does not exist" and
 without guessing which, and an id that is not a UUID reaches that screen without a
 request.
 
-The detail response reserves `score`, `summary` and `questions`, which the backend
-always returns as `null`/`[]` today. Until the scoring module fills them, the detail
-page reads `GET /api/scoring/sessions/:id/result` through `useSessionResult`, and
-only for a `COMPLETED` session whose `detail.score` is still null. That endpoint
-answers 400/403/404 when there is simply no result yet, so those statuses produce a
-status-specific notice rather than an error banner. For a session that is not yet
-completed, the retry control reloads the detail instead: what the viewer is waiting
-for is the status changing, not a result that cannot exist.
+The detail response includes `score`, `summary`, and `questions` for completed sessions, while omitting `emotionTimeline`, `scoringModel`, and `promptVersion`. For any `COMPLETED` session, the detail page reads `GET /api/scoring/sessions/:id/result` through `useSessionResult` so `ScoringResultView` has the full breakdown, model metadata, and emotion timeline. That endpoint answers 400/403/404 when there is simply no result yet, so those statuses produce a status-specific notice rather than an error banner. For a session that is not yet completed, the retry control reloads the detail instead: what the viewer is waiting for is the status changing, not a result that cannot exist.
 
 ## Interview Question Generation
 
@@ -269,11 +262,11 @@ data and never sends video to Cloudinary/backend; authenticated interview routes
 
 `GET /api/scoring/stream` delivers real-time `job-update` (`answer-scored` / `answer-failed`) and `ping` heartbeat events over Server-Sent Events. The client uses `fetch` + `ReadableStream` (`src/services/scoringStreamService.ts`) parsed by the pure `createSseParser` (`src/utils/sseParser.ts`) instead of the native `EventSource` API, because `EventSource` cannot attach the `Authorization: Bearer` header required by the backend guard.
 
-- **Auth & 401 refresh**: On `401`, `openScoringStream` calls the shared `refreshAccessToken()` exported from `apiClient.ts` once (never calling `/auth/refresh` directly so single-flight refresh and Web Locks stay intact). A fresh token triggers an immediate reconnect; `null` stops the stream cleanly. `403` and other `4xx` responses also stop without reconnecting.
-- **Reconnect & missed-event recovery**: On network failures, `5xx`, or unexpected stream closure while not aborted, `openScoringStream` reconnects with exponential backoff (`1s → 2s → 4s → 8s → 15s`, `SCORING_STREAM_BACKOFF_MS`) and resets the backoff once opened. Because SSE is in-memory and does not replay events emitted while disconnected, `HistoryDetailPage` passes `reload` to `onConnected` so every successful open or reconnect re-syncs the session status once.
+- **Auth & 401 refresh**: On `401`, `openScoringStream` first checks whether another request or tab already rotated the access token in storage and reconnects immediately if so; otherwise it calls the shared `refreshAccessToken()` exported from `apiClient.ts` once (never calling `/auth/refresh` directly so single-flight refresh and Web Locks stay intact). A fresh token triggers an immediate reconnect; `null` calls `endSession()` so `AuthProvider` signs the user out cleanly and stops the stream. `403` and other `4xx` responses stop without reconnecting.
+- **Reconnect & missed-event recovery**: On network failures, `5xx`, or unexpected stream closure while not aborted, `openScoringStream` reconnects with exponential backoff (`1s → 2s → 4s → 8s → 15s`, `SCORING_STREAM_BACKOFF_MS`) and resets the backoff once opened. Because SSE is in-memory and does not replay events emitted while disconnected, `HistoryDetailPage` passes `reload` to `onReconnected` so every reconnect re-syncs the session status without double-fetching on initial page load.
 - **React lifecycle**: `useScoringStream` opens only when `enabled` (`SUBMITTED` or `SCORING`) and `sessionId` are set, filters events to `event.payload.sessionId === sessionId`, stores callbacks in refs so callback updates never reopen the stream, and aborts both the fetch and any pending backoff timer on unmount.
-- **Result view (`src/components/scoring/`)**: `HistoryResultPanel` delegates completed results to `ScoringResultView`, which composes `ScoreValue` (overall score), `ScoreBreakdownChart` (3-pillar SVG radar + horizontal bars), `FeedbackList` (strengths/improvements with `FeedbackCategory` badges and model/version metadata), and `EmotionTimeline` (per-question stacked bars with legend, screen-reader breakdown, empty state, and non-evaluative disclaimer).
-- **Emotion color mapping**: To keep `src/styles/tokens.css` unchanged, the 7 emotion labels map onto existing semantic tokens: `neutral` → `bg-border-strong`, `happy` → `bg-success-600`, `surprised` → `bg-info-600`, `sad` → `bg-brand-300`, `fearful` → `bg-warning-600`, `angry` → `bg-danger-600`, `disgusted` → `bg-brand-800`.
+- **Result view (`src/components/scoring/`)**: `HistoryResultPanel` delegates completed results to `ScoringResultView`, which composes `ScoreValue` (overall score), `ScoreBreakdownChart` (3-pillar SVG radar + horizontal bars), `FeedbackList` (strengths/improvements with `FeedbackCategory` badges and model/version metadata), and `EmotionTimeline` (per-question stacked bars with exact proportional widths, legend, screen-reader breakdown, empty state, and non-evaluative disclaimer). In `InterviewRoomPage`, the "Xem kết quả chi tiết" link is shown only for valid session UUIDs (`isSessionId(id)`), omitting it on the `/dev/interview-room` demo route.
+- **Emotion color mapping**: To keep `src/styles/tokens.css` unchanged, the 8 emotion labels (MediaPipe `positive`/`neutral`/`surprised` plus legacy face-api labels) map onto existing semantic tokens: `positive` → `bg-success-600`, `neutral` → `bg-border-strong`, `happy` → `bg-success-700`, `surprised` → `bg-info-600`, `sad` → `bg-brand-300`, `fearful` → `bg-warning-600`, `angry` → `bg-danger-600`, `disgusted` → `bg-brand-800`.
 
 ## Adding a Feature
 

@@ -1,4 +1,4 @@
-import { refreshAccessToken } from './apiClient'
+import { endSession, refreshAccessToken } from './apiClient'
 
 import { API_URL, STORAGE_KEYS } from '@/constants'
 import { SCORING_STREAM_BACKOFF_MS } from '@/constants/scoring'
@@ -8,7 +8,7 @@ import { storage } from '@/utils/storage'
 
 export interface OpenScoringStreamOptions {
   onEvent: (event: ScoringJobEvent) => void
-  onOpen?: () => void
+  onOpen?: (isReconnect: boolean) => void
   onStateChange?: (state: ScoringStreamConnectionState) => void
   signal: AbortSignal
 }
@@ -79,8 +79,9 @@ async function readEventStream(
 /**
  * Mở kết nối SSE tới GET /api/scoring/stream bằng fetch + ReadableStream.
  *
- * - 401: gọi refreshAccessToken() của apiClient đúng 1 lần; có token mới thì nối lại ngay,
- *   trả null thì dừng hẳn.
+ * - 401: nếu token mới đã có sẵn trong storage (do request khác vừa refresh) thì nối lại ngay;
+ *   ngược lại gọi refreshAccessToken() của apiClient đúng 1 lần; có token mới thì nối lại ngay,
+ *   trả null thì gọi endSession() để AuthProvider đăng xuất và dừng hẳn.
  * - 403 hoặc 4xx khác: dừng hẳn, không reconnect.
  * - Lỗi mạng, 5xx hoặc stream đóng bất ngờ: reconnect với backoff tăng dần, reset khi mở lại.
  */
@@ -92,6 +93,7 @@ export async function openScoringStream({
 }: OpenScoringStreamOptions): Promise<void> {
   let attempt = 0
   let hasRefreshedOn401 = false
+  let hasOpenedOnce = false
 
   while (!signal.aborted) {
     onStateChange?.(attempt === 0 ? 'connecting' : 'reconnecting')
@@ -115,7 +117,13 @@ export async function openScoringStream({
 
     if (response) {
       if (response.status === 401) {
+        const latestToken = storage.get<string>(STORAGE_KEYS.accessToken)
+        if (latestToken && latestToken !== token) {
+          continue
+        }
+
         if (hasRefreshedOn401) {
+          endSession()
           onStateChange?.('stopped')
           return
         }
@@ -136,6 +144,7 @@ export async function openScoringStream({
         } else if (nextToken) {
           continue
         } else {
+          endSession()
           onStateChange?.('stopped')
           return
         }
@@ -143,10 +152,12 @@ export async function openScoringStream({
         onStateChange?.('stopped')
         return
       } else if (response.ok && response.body) {
+        const isReconnect = hasOpenedOnce
+        hasOpenedOnce = true
         attempt = 0
         hasRefreshedOn401 = false
         onStateChange?.('open')
-        onOpen?.()
+        onOpen?.(isReconnect)
         try {
           await readEventStream(response.body, onEvent, signal)
         } catch {
