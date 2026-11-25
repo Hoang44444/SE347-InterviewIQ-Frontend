@@ -9,6 +9,7 @@ import {
   QuestionPanel,
   QuestionProgress,
   RecordingPlayback,
+  SpeechFeedback,
 } from '@/components/interview'
 import {
   Button,
@@ -20,6 +21,7 @@ import {
   Stack,
   Textarea,
 } from '@/components/ui'
+import { useAnswerTranscription } from '@/hooks/useAnswerTranscription'
 import { useInterviewClock } from '@/hooks/useInterviewClock'
 import { useAnswerSubmission } from '@/hooks/useAnswerSubmission'
 import { useSessionSubmission } from '@/hooks/useSessionSubmission'
@@ -44,6 +46,7 @@ const LOBBY_NOTES = [
   'Mỗi câu ghi một video. Nộp xong câu này mới mở câu tiếp theo.',
   'Đồng hồ chỉ bắt đầu chạy khi bạn bấm Bắt đầu phỏng vấn.',
   'Bản ghi chưa nộp sẽ mất nếu tải lại hoặc rời trang.',
+  'Khi đang ghi, trình duyệt chép lời bạn nói vào ô trả lời. Một số trình duyệt như Chrome gửi âm thanh tới máy chủ của hãng để làm việc này.',
   'Trong lúc phỏng vấn, hệ thống ghi nhận rời tab, thoát toàn màn hình và phân tích hình camera ngay trên máy bạn (không có mặt, nhiều người, nhìn đi chỗ khác) để người xem xét. Hình không bị gửi đi để phân tích; chỉ loại và thời điểm cảnh báo được lưu vào lịch sử của bạn.',
 ]
 
@@ -151,6 +154,13 @@ export function InterviewRoom({
     cheatLogs: service.cheatLogs,
   })
   const violationCount = integrity.summary?.totalCount ?? integrity.events.length
+  const transcription = useAnswerTranscription({
+    recorderStatus: recorder.status,
+    recordings: recorder.recordings,
+    questionId: currentQuestion?.id,
+    text: currentDraft,
+    onChange: (questionId, text) => setDrafts((previous) => ({ ...previous, [questionId]: text })),
+  })
   const answeredIds = useMemo(() => new Set(Object.keys(savedAnswers)), [savedAnswers])
 
   const hasUnsaved = questions.some(
@@ -251,6 +261,8 @@ export function InterviewRoom({
       // Nếu bản ghi đang ghi bị lỗi, không tự nộp bản ghi cũ thay cho bản vừa ghi.
       if (wasRecording && !finalized)
         throw new Error('Không chốt được bản ghi mới. Hãy kiểm tra bản ghi và thử lại.')
+      // Bài nộp lấy đúng chữ đang hiện trong ô; lời đến muộn không được sửa nó nữa.
+      transcription.release()
       setIsFinalizing(false)
       const answer = await answerSubmission.save(
         currentQuestion.id,
@@ -650,11 +662,21 @@ export function InterviewRoom({
           className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1"
           statusSlot={
             isStarted && !isFinished ? (
-              <IntegrityStatus
-                activeTypes={integrity.activeTypes}
-                violationCount={violationCount}
-                detectorState={integrity.detectorState}
-              />
+              <Stack gap="sm">
+                {!isAnswered && (
+                  <SpeechFeedback
+                    status={transcription.status}
+                    error={transcription.error}
+                    pace={transcription.pace}
+                    wpm={transcription.wpm}
+                  />
+                )}
+                <IntegrityStatus
+                  activeTypes={integrity.activeTypes}
+                  violationCount={violationCount}
+                  detectorState={integrity.detectorState}
+                />
+              </Stack>
             ) : undefined
           }
           actions={
@@ -677,7 +699,12 @@ export function InterviewRoom({
             <Textarea
               label="Ghi chú câu trả lời"
               maxLength={50000}
-              hint="Không bắt buộc. Ghi ý chính hoặc chép lại câu trả lời, gửi kèm video khi nộp. Ctrl + Enter để nộp."
+              hint={
+                transcription.isListening
+                  ? 'Đang chép lời bạn nói. Dừng ghi để sửa nội dung. Ctrl + Enter để nộp.'
+                  : 'Không bắt buộc. Nội dung này gửi kèm video và dùng để chấm điểm. Ctrl + Enter để nộp.'
+              }
+              readOnly={transcription.isListening}
               value={currentDraft}
               onChange={(event) => handleDraftChange(event.target.value)}
               onKeyDown={handleTextareaKeyDown}
