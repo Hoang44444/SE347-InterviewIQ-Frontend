@@ -6,8 +6,10 @@ import type { InterviewStatsSession } from '@/types/dashboard'
 import { cn } from '@/utils/cn'
 import { formatScore } from '@/utils/format'
 
-const WIDTH = 640
-const HEIGHT = 260
+// SVG co giãn theo bề rộng card, chữ co theo. Khung hẹp (480) để trên điện thoại
+// nhãn trục vẫn đọc được; trên desktop biểu đồ chỉ to ra chứ không vỡ.
+const WIDTH = 480
+const HEIGHT = 240
 const PAD = { top: 16, right: 20, bottom: 36, left: 36 } as const
 const PLOT_W = WIDTH - PAD.left - PAD.right
 const PLOT_H = HEIGHT - PAD.top - PAD.bottom

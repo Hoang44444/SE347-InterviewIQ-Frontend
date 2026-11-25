@@ -19,8 +19,10 @@ function criterionLabel(key: ScoreKey): string {
 }
 
 /**
- * Bốn đường của biểu đồ xu hướng. Màu lấy từ token trạng thái có sẵn chứ không
- * thêm màu mới; điểm tổng dùng màu thương hiệu và nét đậm để nổi nhất.
+ * Bốn đường của biểu đồ xu hướng. Màu lấy từ token có sẵn chứ không thêm màu
+ * mới; điểm tổng dùng màu thương hiệu và nét đậm để nổi nhất. "Nội dung" dùng
+ * màu xám chứ không dùng info: info cùng tông xanh với brand nên hai đường gần
+ * như không phân biệt được.
  */
 export const SCORE_SERIES: readonly ScoreSeriesMeta[] = [
   {
@@ -33,9 +35,9 @@ export const SCORE_SERIES: readonly ScoreSeriesMeta[] = [
   {
     key: 'contentScore',
     label: criterionLabel('contentScore'),
-    strokeClass: 'stroke-info-600',
-    fillClass: 'fill-info-600',
-    swatchClass: 'bg-info-600',
+    strokeClass: 'stroke-content-muted',
+    fillClass: 'fill-content-muted',
+    swatchClass: 'bg-content-muted',
   },
   {
     key: 'relevanceScore',

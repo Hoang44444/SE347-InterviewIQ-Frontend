@@ -48,7 +48,7 @@ export function DashboardPage() {
         description="Đây là tổng quan quá trình luyện tập của bạn."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {statTiles(stats).map((stat) => (
           <Card key={stat.label}>
             <p className="text-sm text-content-muted">{stat.label}</p>
@@ -93,7 +93,8 @@ export function DashboardPage() {
       )}
 
       {stats && hasScores && (
-        <div className="grid gap-4 lg:grid-cols-3">
+        // items-start: card so sánh cao hơn, không để nó kéo card xu hướng cao theo
+        <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
           <Card className="flex flex-col gap-4 lg:col-span-2">
             <div>
               <h2 className="font-semibold text-content">Xu hướng điểm</h2>
