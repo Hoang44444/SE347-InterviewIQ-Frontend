@@ -12,6 +12,9 @@ concurrency:
   group: frontend-ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  HUSKY: '0'
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -21,7 +24,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - run: npm ci
@@ -30,3 +33,37 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm run build
+
+  # Dam bao image production build duoc va chay duoc. Khong push image di dau.
+  docker:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate compose file
+        run: docker compose config --quiet
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: interviewiq-frontend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test image
+        run: |
+          docker run -d --name web -p 8080:80 interviewiq-frontend:ci
+          # Trang chu va mot route phia client deu phai tra ve index.html
+          for path in / /history; do
+            curl --fail --silent --retry 10 --retry-delay 1 --retry-all-errors \
+              "http://localhost:8080$path" | grep -q 'id="root"'
+          done
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs web || true
