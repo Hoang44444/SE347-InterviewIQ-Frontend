@@ -53,12 +53,17 @@ export const SCORE_SERIES: readonly ScoreSeriesMeta[] = [
   },
 ]
 
-const SHORT_DATE = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' })
-
-/** "20/10" cho nhãn trục; chuỗi ISO hỏng thì để trống chứ không vỡ biểu đồ. */
+/**
+ * "20/10" cho nhãn trục, theo giờ máy người dùng. Ghép tay chứ không dùng
+ * Intl: mẫu ngày-tháng của locale vi khác nhau giữa các bản ICU (có bản ra
+ * "20-10"). Chuỗi ISO hỏng thì để trống chứ không vỡ biểu đồ.
+ */
 export function formatShortDate(iso: string): string {
   const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? '' : SHORT_DATE.format(date)
+  if (Number.isNaN(date.getTime())) return ''
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  return `${day}/${month}`
 }
 
 /** Kẹp điểm vào thang để một giá trị lạ không vẽ ra ngoài khung. */
