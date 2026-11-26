@@ -9,6 +9,7 @@ export interface UseScoringStreamOptions {
   onScored?: (event: ScoringJobEvent) => void
   onFailed?: (error: string, event: ScoringJobEvent) => void
   onConnected?: () => void
+  onReconnected?: () => void
 }
 
 const DEFAULT_FAILURE_MESSAGE = 'Không thể chấm điểm buổi phỏng vấn này.'
@@ -25,13 +26,14 @@ export function useScoringStream({
   onScored,
   onFailed,
   onConnected,
+  onReconnected,
 }: UseScoringStreamOptions): { connectionState: ScoringStreamConnectionState } {
   const [streamState, setStreamState] = useState<ScoringStreamConnectionState>('idle')
-  const callbacksRef = useRef({ onScored, onFailed, onConnected })
+  const callbacksRef = useRef({ onScored, onFailed, onConnected, onReconnected })
 
   useEffect(() => {
-    callbacksRef.current = { onScored, onFailed, onConnected }
-  }, [onScored, onFailed, onConnected])
+    callbacksRef.current = { onScored, onFailed, onConnected, onReconnected }
+  }, [onScored, onFailed, onConnected, onReconnected])
 
   const isActive = enabled && sessionId !== null
 
@@ -44,8 +46,10 @@ export function useScoringStream({
       onStateChange: (nextState) => {
         if (!controller.signal.aborted) setStreamState(nextState)
       },
-      onOpen: () => {
-        if (!controller.signal.aborted) callbacksRef.current.onConnected?.()
+      onOpen: (isReconnect) => {
+        if (controller.signal.aborted) return
+        callbacksRef.current.onConnected?.()
+        if (isReconnect) callbacksRef.current.onReconnected?.()
       },
       onEvent: (event) => {
         if (controller.signal.aborted || event.payload.sessionId !== sessionId) return

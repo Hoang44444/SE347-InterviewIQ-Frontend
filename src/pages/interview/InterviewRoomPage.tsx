@@ -43,6 +43,7 @@ import type {
   Question,
 } from '@/types/interview'
 import { formatDuration } from '@/utils/format'
+import { isSessionId } from '@/utils/sessionId'
 import { storage } from '@/utils/storage'
 
 /* Lưu ý ở phòng chờ: không phải các bước tuần tự nên dùng dấu tích, không đánh số. */
@@ -464,17 +465,24 @@ export function InterviewRoom({
                       : 'Đã nộp — đang chấm điểm'}
                 </p>
                 {scoring.job?.status === 'COMPLETED' ? (
-                  <Stack gap="sm">
+                  isSessionId(id) ? (
+                    <Stack gap="sm">
+                      <p className="text-sm text-content-subtle">
+                        Chấm điểm đã hoàn tất. Xem bảng điểm, nhận xét chi tiết và biểu đồ biểu cảm.
+                      </p>
+                      <Link
+                        to={ROUTES.historyDetail(id)}
+                        className="inline-flex h-10 items-center justify-center self-start rounded-control bg-brand-600 px-4 text-sm font-medium text-white transition hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                      >
+                        Xem kết quả chi tiết
+                      </Link>
+                    </Stack>
+                  ) : (
                     <p className="text-sm text-content-subtle">
-                      Chấm điểm đã hoàn tất. Xem bảng điểm, nhận xét chi tiết và biểu đồ biểu cảm.
+                      Phiên demo đã chấm xong. Dữ liệu mẫu chỉ giữ tạm trong phòng này và không lưu
+                      vào lịch sử.
                     </p>
-                    <Link
-                      to={ROUTES.historyDetail(id)}
-                      className="inline-flex h-10 items-center justify-center self-start rounded-control bg-brand-600 px-4 text-sm font-medium text-white transition hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-                    >
-                      Xem kết quả chi tiết
-                    </Link>
-                  </Stack>
+                  )
                 ) : (
                   <p className="text-sm text-content-subtle">
                     Theo dõi tiến độ chấm điểm cho bài đã nộp.

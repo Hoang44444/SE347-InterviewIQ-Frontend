@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-import { refreshAccessToken } from './apiClient'
+import { endSession, refreshAccessToken } from './apiClient'
 import { openScoringStream } from './scoringStreamService'
 
 import { STORAGE_KEYS } from '@/constants'
@@ -9,6 +9,7 @@ import type { ScoringJobEvent, ScoringStreamConnectionState } from '@/types/scor
 import { storage } from '@/utils/storage'
 
 vi.mock('./apiClient', () => ({
+  endSession: vi.fn(),
   refreshAccessToken: vi.fn(),
 }))
 
@@ -40,6 +41,7 @@ const sampleEvent: ScoringJobEvent = {
 
 beforeEach(() => {
   localStorage.clear()
+  vi.mocked(endSession).mockReset()
   vi.mocked(refreshAccessToken).mockReset()
 })
 
@@ -80,6 +82,7 @@ test('opens stream with bearer token, delivers job-update events, and ignores pi
     }),
   )
   expect(onOpen).toHaveBeenCalledTimes(1)
+  expect(onOpen).toHaveBeenCalledWith(false)
   expect(onEvent).toHaveBeenCalledTimes(1)
   expect(onEvent).toHaveBeenCalledWith(sampleEvent)
 })
@@ -130,8 +133,100 @@ test('stops without reconnecting when refreshAccessToken returns null after 401'
   })
 
   expect(refreshAccessToken).toHaveBeenCalledTimes(1)
+  expect(endSession).toHaveBeenCalledTimes(1)
   expect(fetchMock).toHaveBeenCalledTimes(1)
   expect(states.at(-1)).toBe('stopped')
+})
+
+test('on 401 reconnects immediately without refreshing if storage already has a newer token', async () => {
+  storage.set(STORAGE_KEYS.accessToken, 'stale-token')
+  const controller = new AbortController()
+  const onEvent = vi.fn(() => controller.abort())
+
+  const fetchMock = vi
+    .fn()
+    .mockImplementationOnce(async () => {
+      storage.set(STORAGE_KEYS.accessToken, 'rotated-by-other-tab')
+      return new Response(null, { status: 401 })
+    })
+    .mockResolvedValueOnce(
+      createStreamResponse([`event: job-update\ndata: ${JSON.stringify(sampleEvent)}\n\n`]),
+    )
+  vi.stubGlobal('fetch', fetchMock)
+
+  await openScoringStream({ onEvent, signal: controller.signal })
+
+  expect(refreshAccessToken).not.toHaveBeenCalled()
+  expect(endSession).not.toHaveBeenCalled()
+  expect(fetchMock).toHaveBeenCalledTimes(2)
+  expect(fetchMock.mock.calls[1][1]).toMatchObject({
+    headers: {
+      Accept: 'text/event-stream',
+      Authorization: 'Bearer rotated-by-other-tab',
+    },
+  })
+})
+
+test('on 401 backs off and retries when refreshAccessToken fails due to network error', async () => {
+  vi.useFakeTimers()
+  storage.set(STORAGE_KEYS.accessToken, 'expired-token')
+  const controller = new AbortController()
+  const onEvent = vi.fn(() => controller.abort())
+
+  vi.mocked(refreshAccessToken)
+    .mockRejectedValueOnce(new Error('Network down'))
+    .mockImplementationOnce(async () => {
+      storage.set(STORAGE_KEYS.accessToken, 'recovered-token')
+      return 'recovered-token'
+    })
+
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(new Response(null, { status: 401 }))
+    .mockResolvedValueOnce(new Response(null, { status: 401 }))
+    .mockResolvedValueOnce(
+      createStreamResponse([`event: job-update\ndata: ${JSON.stringify(sampleEvent)}\n\n`]),
+    )
+  vi.stubGlobal('fetch', fetchMock)
+
+  const runPromise = openScoringStream({ onEvent, signal: controller.signal })
+
+  await vi.advanceTimersByTimeAsync(0)
+  expect(refreshAccessToken).toHaveBeenCalledTimes(1)
+  expect(endSession).not.toHaveBeenCalled()
+
+  await vi.advanceTimersByTimeAsync(SCORING_STREAM_BACKOFF_MS[0])
+  await runPromise
+
+  expect(refreshAccessToken).toHaveBeenCalledTimes(2)
+  expect(endSession).not.toHaveBeenCalled()
+  expect(onEvent).toHaveBeenCalledWith(sampleEvent)
+})
+
+test('calls onOpen(false) initially and onOpen(true) after unexpected stream closure and reconnect', async () => {
+  vi.useFakeTimers()
+  const controller = new AbortController()
+  const onOpen = vi.fn()
+  const onEvent = vi.fn(() => controller.abort())
+
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(createStreamResponse([':ping\n\n']))
+    .mockResolvedValueOnce(
+      createStreamResponse([`event: job-update\ndata: ${JSON.stringify(sampleEvent)}\n\n`]),
+    )
+  vi.stubGlobal('fetch', fetchMock)
+
+  const runPromise = openScoringStream({ onEvent, onOpen, signal: controller.signal })
+
+  await vi.advanceTimersByTimeAsync(0)
+  expect(onOpen).toHaveBeenNthCalledWith(1, false)
+
+  await vi.advanceTimersByTimeAsync(SCORING_STREAM_BACKOFF_MS[0])
+  await runPromise
+
+  expect(onOpen).toHaveBeenNthCalledWith(2, true)
+  expect(onEvent).toHaveBeenCalledWith(sampleEvent)
 })
 
 test('stops without reconnecting on 403 forbidden', async () => {
@@ -148,6 +243,7 @@ test('stops without reconnecting on 403 forbidden', async () => {
 
   expect(fetchMock).toHaveBeenCalledTimes(1)
   expect(refreshAccessToken).not.toHaveBeenCalled()
+  expect(endSession).not.toHaveBeenCalled()
   expect(states.at(-1)).toBe('stopped')
 })
 

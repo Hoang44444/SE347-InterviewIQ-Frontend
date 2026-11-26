@@ -24,7 +24,7 @@ export function HistoryDetailPage() {
   const { connectionState } = useScoringStream({
     enabled: detail?.status === 'SUBMITTED' || detail?.status === 'SCORING',
     sessionId: detail?.id ?? null,
-    onConnected: reload,
+    onReconnected: reload,
     onScored: () => {
       toast.success('Đã có kết quả chấm điểm', 'Bảng điểm và nhận xét đã sẵn sàng.')
       reload()
@@ -39,13 +39,10 @@ export function HistoryDetailPage() {
 
   /**
    * Chỉ buổi đã hoàn thành mới có kết quả chấm; gọi cho trạng thái khác chỉ nhận
-   * về 400. Điều kiện `detail.score === null` để khi Scoring module đổ dữ liệu
-   * vào API lịch sử thì hook này tự ngừng gọi thêm một request nữa.
+   * về 400. Endpoint /scoring/sessions/:id/result trả đủ bảng điểm, metadata mô hình
+   * và emotionTimeline mà API lịch sử không mang theo.
    */
-  const sessionResult = useSessionResult(
-    detail?.id ?? null,
-    detail?.status === 'COMPLETED' && detail.score === null,
-  )
+  const sessionResult = useSessionResult(detail?.id ?? null, detail?.status === 'COMPLETED')
 
   /**
    * Buổi đã hoàn thành thì "kiểm tra lại" là tải lại kết quả chấm. Các trạng

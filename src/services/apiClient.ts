@@ -70,7 +70,7 @@ export function setSessionExpiredHandler(handler: SessionExpiredHandler): () => 
   }
 }
 
-function endSession() {
+export function endSession() {
   const hadSession = storage.get<string>(STORAGE_KEYS.refreshToken) !== null
   storage.remove(STORAGE_KEYS.accessToken)
   storage.remove(STORAGE_KEYS.refreshToken)

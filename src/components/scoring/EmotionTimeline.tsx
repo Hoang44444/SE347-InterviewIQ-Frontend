@@ -10,6 +10,7 @@ export interface EmotionTimelineProps {
 
 interface EmotionSegment {
   emotion: EmotionLabel
+  widthPercent: number
   percent: number
 }
 
@@ -22,10 +23,14 @@ function getSegments(distribution: Record<string, number>): EmotionSegment[] {
   const total = entries.reduce((sum, entry) => sum + entry.weight, 0)
   if (total <= 0) return []
 
-  return entries.map((entry) => ({
-    emotion: entry.emotion,
-    percent: Math.round((entry.weight / total) * 100),
-  }))
+  return entries.map((entry) => {
+    const exactPercent = (entry.weight / total) * 100
+    return {
+      emotion: entry.emotion,
+      widthPercent: exactPercent,
+      percent: Math.round(exactPercent),
+    }
+  })
 }
 
 function getEmotionLabel(raw: string): string {
@@ -33,7 +38,11 @@ function getEmotionLabel(raw: string): string {
 }
 
 export function EmotionTimeline({ timeline }: EmotionTimelineProps) {
-  const hasAnyEmotion = timeline.some((item) => item.emotionSummary !== null)
+  const rows = timeline.map((item) => ({
+    item,
+    segments: item.emotionSummary ? getSegments(item.emotionSummary.distribution) : [],
+  }))
+  const hasAnyEmotion = rows.some((row) => row.segments.length > 0)
 
   if (!hasAnyEmotion) {
     return (
@@ -48,7 +57,7 @@ export function EmotionTimeline({ timeline }: EmotionTimelineProps) {
   }
 
   const usedEmotions = EMOTION_ORDER.filter((emotion) =>
-    timeline.some((item) => Number(item.emotionSummary?.distribution[emotion] ?? 0) > 0),
+    rows.some((row) => row.segments.some((segment) => segment.emotion === emotion)),
   )
 
   return (
@@ -56,8 +65,7 @@ export function EmotionTimeline({ timeline }: EmotionTimelineProps) {
       <h3 className="text-sm font-semibold text-content">Biểu cảm theo từng câu hỏi</h3>
 
       <ol className="flex flex-col gap-3">
-        {timeline.map((item, index) => {
-          const segments = item.emotionSummary ? getSegments(item.emotionSummary.distribution) : []
+        {rows.map(({ item, segments }, index) => {
           const dominantLabel = item.emotionSummary
             ? getEmotionLabel(item.emotionSummary.dominant)
             : null
@@ -80,11 +88,11 @@ export function EmotionTimeline({ timeline }: EmotionTimelineProps) {
                     aria-hidden
                     className="flex h-2 w-full overflow-hidden rounded-full bg-surface-sunken"
                   >
-                    {segments.map(({ emotion, percent }) => (
+                    {segments.map(({ emotion, widthPercent }) => (
                       <div
                         key={emotion}
                         className={cn('h-full', EMOTION_META[emotion].barClass)}
-                        style={{ width: `${percent}%` }}
+                        style={{ width: `${widthPercent}%` }}
                       />
                     ))}
                   </div>

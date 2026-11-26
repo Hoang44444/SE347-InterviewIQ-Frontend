@@ -21,6 +21,45 @@ test('renders empty state when timeline is empty or every question lacks emotion
   ]
   rerender(<EmotionTimeline timeline={nullOnly} />)
   expect(screen.getByText('Buổi này không có dữ liệu biểu cảm')).toBeInTheDocument()
+
+  const allZero: QuestionEmotion[] = [
+    {
+      questionPublicId: 'q-2',
+      orderIndex: 1,
+      domain: 'TECHNICAL',
+      difficulty: 'EASY',
+      durationSeconds: 30,
+      emotionSummary: { dominant: 'neutral', distribution: { neutral: 0, positive: 0 } },
+    },
+  ]
+  rerender(<EmotionTimeline timeline={allZero} />)
+  expect(screen.getByText('Buổi này không có dữ liệu biểu cảm')).toBeInTheDocument()
+})
+
+test('computes exact bar widths summing to 100% for uneven thirds', () => {
+  const timeline: QuestionEmotion[] = [
+    {
+      questionPublicId: 'q-thirds',
+      orderIndex: 1,
+      domain: 'TECHNICAL',
+      difficulty: 'MEDIUM',
+      durationSeconds: 45,
+      emotionSummary: {
+        dominant: 'positive',
+        distribution: { positive: 1, neutral: 1, surprised: 1 },
+      },
+    },
+  ]
+
+  const { container } = render(<EmotionTimeline timeline={timeline} />)
+  const segments = container.querySelectorAll<HTMLDivElement>('div[aria-hidden] > div')
+  const totalWidth = Array.from(segments).reduce(
+    (sum, node) => sum + Number.parseFloat(node.style.width),
+    0,
+  )
+
+  expect(segments).toHaveLength(3)
+  expect(totalWidth).toBeCloseTo(100, 5)
 })
 
 test('shows the positive label sent by the MediaPipe analysis', () => {

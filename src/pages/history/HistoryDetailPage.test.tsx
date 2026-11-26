@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import type { InternalAxiosRequestConfig } from 'axios'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
@@ -263,4 +263,94 @@ test('nhận sự kiện SSE answer-scored thì bắn toast và tải kết qu�
 
   expect(await screen.findByText('Đã có kết quả chấm điểm')).toBeInTheDocument()
   expect(await screen.findByText('7,4')).toBeInTheDocument()
+})
+
+test('buổi COMPLETED đã có sẵn detail.score từ API lịch sử vẫn tải đầy đủ ScoringResultView và biểu cảm', async () => {
+  const detailWithScore: InterviewHistoryDetail = {
+    ...detail,
+    score: {
+      contentScore: 8,
+      relevanceScore: 7.5,
+      confidenceScore: 6.5,
+      overallScore: 7.4,
+      maxScore: 10,
+      scoredAt: '2026-10-20T08:14:02.000Z',
+    },
+    summary: {
+      overallFeedback: 'Ứng viên nắm vững kiến thức nền tảng.',
+      strengths: [],
+      improvements: [],
+    },
+  }
+  const resultWithEmotion: SessionResult = {
+    ...result,
+    emotionTimeline: [
+      {
+        questionPublicId: 'q-1',
+        orderIndex: 1,
+        domain: 'TECHNICAL',
+        difficulty: 'MEDIUM',
+        durationSeconds: 60,
+        emotionSummary: {
+          dominant: 'positive',
+          distribution: { positive: 0.7, neutral: 0.3 },
+        },
+      },
+    ],
+  }
+
+  const urls = setup(sessionId, {
+    detail: () => detailWithScore,
+    result: () => resultWithEmotion,
+  })
+
+  expect(await screen.findByText('7,4')).toBeInTheDocument()
+  expect(screen.getByText(/gemini-2\.5-flash · v1\.0/)).toBeInTheDocument()
+  expect(screen.getByText(/Tích cực 70%, Bình thản 30%/)).toBeInTheDocument()
+  expect(urls).toContain(`/scoring/sessions/${sessionId}/result`)
+})
+
+test('nhận sự kiện SSE answer-failed thì bắn toast lỗi và tải lại chi tiết buổi', async () => {
+  let currentStatus: InterviewHistoryDetail['status'] = 'SCORING'
+  setup(sessionId, {
+    detail: () => ({ ...detail, status: currentStatus }),
+  })
+
+  expect(await screen.findByText('Hệ thống đang chấm bài')).toBeInTheDocument()
+
+  currentStatus = 'FAILED'
+  act(() => {
+    capturedStreamOptions?.onEvent({
+      userId: 'user-1',
+      jobId: 'job-1',
+      type: 'answer-failed',
+      payload: { sessionId, error: 'AI service is temporarily busy.' },
+    })
+  })
+
+  expect(await screen.findByText('AI service is temporarily busy.')).toBeInTheDocument()
+  expect(
+    await screen.findByText('Câu trả lời của bạn vẫn được lưu. Hãy thử kiểm tra lại sau.'),
+  ).toBeInTheDocument()
+})
+
+test('chỉ reload chi tiết buổi khi SSE reconnect, không gọi trùng lúc mới mở lần đầu', async () => {
+  const urls = setup(sessionId, {
+    detail: () => ({ ...detail, status: 'SCORING' }),
+  })
+
+  expect(await screen.findByText('Hệ thống đang chấm bài')).toBeInTheDocument()
+  expect(urls).toEqual([`/interviews/${sessionId}`])
+
+  act(() => {
+    capturedStreamOptions?.onOpen?.(false)
+  })
+  expect(urls).toEqual([`/interviews/${sessionId}`])
+
+  act(() => {
+    capturedStreamOptions?.onOpen?.(true)
+  })
+  await waitFor(() => {
+    expect(urls).toEqual([`/interviews/${sessionId}`, `/interviews/${sessionId}`])
+  })
 })
