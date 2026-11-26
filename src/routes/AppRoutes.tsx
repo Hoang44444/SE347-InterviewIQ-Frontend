@@ -13,6 +13,7 @@ import { ProfilePage } from '@/pages/ProfilePage'
 import { CvPage } from '@/pages/cv/CvPage'
 import { HistoryDetailPage } from '@/pages/history/HistoryDetailPage'
 import { HistoryPage } from '@/pages/history/HistoryPage'
+import { QuestionBankPage } from '@/pages/questionBank/QuestionBankPage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
 import { VerifyRegistrationPage } from '@/pages/auth/VerifyRegistrationPage'
@@ -49,6 +50,7 @@ export function AppRoutes() {
           <Route path="/interviews/:id" element={<InterviewRoomPage />} />
           <Route path={ROUTES.history} element={<HistoryPage />} />
           <Route path="/history/:id" element={<HistoryDetailPage />} />
+          <Route path={ROUTES.questionBank} element={<QuestionBankPage />} />
           <Route path={ROUTES.profile} element={<ProfilePage />} />
         </Route>
       </Route>

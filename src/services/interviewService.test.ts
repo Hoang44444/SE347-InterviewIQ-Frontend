@@ -8,7 +8,7 @@ import { interviewService } from './interviewService'
 import { API_URL, STORAGE_KEYS } from '@/constants'
 import { GENERATE_QUESTIONS_TIMEOUT } from '@/constants/interview'
 import { answer, signedParams } from '@/test/interviewFixtures'
-import { generatedQuestions } from '@/test/sessionFixtures'
+import { generatedQuestions, sessionDetail } from '@/test/sessionFixtures'
 import { storage } from '@/utils/storage'
 
 test('lists session pages and starts without a body using the authenticated client and envelope', async () => {
@@ -290,16 +290,127 @@ test('generates questions with a long timeout, sending a body only when count is
   const url = `/interview-session/${id}/questions`
 
   expect(await interviewService.generateQuestions(id)).toEqual(generatedQuestions)
-  await interviewService.generateQuestions(id, 8)
+  await interviewService.generateQuestions(id, { count: 8 })
+  await interviewService.generateQuestions(id, {
+    count: 6,
+    domain: 'TECHNICAL',
+    difficulty: undefined,
+  })
   expect(await interviewService.getSessionQuestions(id)).toEqual(generatedQuestions)
 
   expect(requests.map((request) => [request.method, request.url])).toEqual([
+    ['post', `${url}/generate`],
     ['post', `${url}/generate`],
     ['post', `${url}/generate`],
     ['get', url],
   ])
   expect(requests[0].data).toBeUndefined()
   expect(JSON.parse(requests[1].data)).toEqual({ count: 8 })
+  // trường undefined không được gửi lên
+  expect(JSON.parse(requests[2].data)).toEqual({ count: 6, domain: 'TECHNICAL' })
   expect(requests[0].timeout).toBe(GENERATE_QUESTIONS_TIMEOUT)
-  expect(requests[2].timeout).not.toBe(GENERATE_QUESTIONS_TIMEOUT)
+  expect(requests[3].timeout).not.toBe(GENERATE_QUESTIONS_TIMEOUT)
+})
+
+test('regenerates one question with the long timeout and sends a body only for chosen fields', async () => {
+  const requests: InternalAxiosRequestConfig[] = []
+  apiClient.defaults.adapter = async (config) => {
+    requests.push(config)
+    return {
+      data: { success: true, data: generatedQuestions },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+  const id = generatedQuestions.sessionPublicId
+  const questionId = generatedQuestions.questions[0].publicId
+  const url = `/interview-session/${id}/questions/${questionId}/regenerate`
+
+  expect(await interviewService.regenerateQuestion(id, questionId)).toEqual(generatedQuestions)
+  await interviewService.regenerateQuestion(id, questionId, { difficulty: 'HARD' })
+  await interviewService.regenerateQuestion(id, questionId, {
+    domain: 'BEHAVIORAL',
+    difficulty: 'EASY',
+  })
+
+  expect(requests.map((request) => [request.method, request.url])).toEqual([
+    ['post', url],
+    ['post', url],
+    ['post', url],
+  ])
+  expect(requests[0].data).toBeUndefined()
+  expect(JSON.parse(requests[1].data)).toEqual({ difficulty: 'HARD' })
+  expect(JSON.parse(requests[2].data)).toEqual({ domain: 'BEHAVIORAL', difficulty: 'EASY' })
+  for (const request of requests) expect(request.timeout).toBe(GENERATE_QUESTIONS_TIMEOUT)
+})
+
+function respondWith(data: unknown) {
+  const requests: InternalAxiosRequestConfig[] = []
+  apiClient.defaults.adapter = async (config) => {
+    requests.push(config)
+    return { data: { success: true, data }, status: 200, statusText: 'OK', headers: {}, config }
+  }
+  return requests
+}
+
+test('room info comes from the interview detail, keeping the CV needed to submit', async () => {
+  const requests = respondWith(sessionDetail)
+
+  expect(await interviewService.getById(sessionDetail.id)).toEqual({
+    id: sessionDetail.id,
+    title: sessionDetail.title,
+    cvPublicId: sessionDetail.cv!.id,
+    startedAt: sessionDetail.startedAt,
+    savedAnswers: [],
+  })
+  expect(requests[0].url).toBe(`/interviews/${sessionDetail.id}`)
+})
+
+test('room info carries the answers already saved, skipping ones without a video', async () => {
+  const question = { orderIndex: 1, content: 'Q', domain: 'TECHNICAL', difficulty: 'EASY' }
+  respondWith({
+    ...sessionDetail,
+    questions: [
+      {
+        ...question,
+        id: 'a',
+        answer: { videoUrl: 'https://v/a.webm', durationSeconds: 9, transcript: 'xin chào' },
+      },
+      { ...question, id: 'b', answer: null },
+      { ...question, id: 'c', answer: { videoUrl: null, durationSeconds: null, transcript: null } },
+    ],
+  })
+
+  expect((await interviewService.getById(sessionDetail.id)).savedAnswers).toEqual([
+    {
+      questionPublicId: 'a',
+      videoUrl: 'https://v/a.webm',
+      durationSeconds: 9,
+      transcript: 'xin chào',
+    },
+  ])
+})
+
+test('room info has no CV id when the CV was deleted', async () => {
+  respondWith({ ...sessionDetail, cv: null })
+
+  expect((await interviewService.getById(sessionDetail.id)).cvPublicId).toBeUndefined()
+})
+
+test('room questions come from the session question set, in order and keyed by publicId', async () => {
+  const [first, second] = generatedQuestions.questions
+  const requests = respondWith({ ...generatedQuestions, questions: [second, first] })
+  const id = generatedQuestions.sessionPublicId
+
+  expect(await interviewService.getQuestions(id)).toEqual(
+    [first, second].map(({ publicId, content, domain, difficulty }) => ({
+      id: publicId,
+      content,
+      domain,
+      difficulty,
+    })),
+  )
+  expect(requests[0].url).toBe(`/interview-session/${id}/questions`)
 })

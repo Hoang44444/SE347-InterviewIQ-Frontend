@@ -31,7 +31,7 @@ Do not call Axios directly from pages or components. Route every request through
 
 ## Application Startup and Routing
 
-`src/main.tsx` mounts the application and loads global CSS. `App.tsx` composes providers in this order: `ToastProvider → AuthProvider → BrowserRouter`. `AppRoutes.tsx` separates routes into three groups:
+`src/main.tsx` mounts the application and loads global CSS. `App.tsx` composes providers in this order: `ToastProvider → AuthProvider → RouterProvider`. The router is a data router (so the interview room can use `useBlocker`) with a single catch-all route that renders `AppRoutes`. Tests that render the room use `TestRouter` from `src/test/`. `AppRoutes.tsx` separates routes into three groups:
 
 - Public routes use `MainLayout`.
 - Login and registration routes use `AuthLayout`.
@@ -79,11 +79,25 @@ timestamps. Room details must include the CV public ID associated with the sessi
 Missing CV metadata produces an error instead of falsely showing a saved summary.
 The demo implements the same service method locally without a server request.
 
-Room loading still uses `/interviews/:id` and `/interviews/:id/questions`; backend
-read API alignment remains a separate dependency. The first of those URLs now belongs
-to the interview-history module and returns a different shape (see _Interview
-History_ below), and the second has no backend endpoint. Live server persistence has not
-been validated by the demo or mocked browser checks.
+The room loads its title and CV from `GET /interviews/:id` and its questions from
+`GET /interview-session/:id/questions`.
+
+### Resuming and leaving
+
+The same detail response lists saved answers, so entering an in-progress session
+again restores them: the room opens at the first unanswered question, and answers
+without a video count as unanswered. The server cannot supply per-question answer
+durations, so restored answers show none. Drafts and unsubmitted recordings are not
+restored.
+
+The session clock start is remembered in `localStorage`
+(`interviewiq:room_clock:<sessionId>`) and removed after submission, so a reload
+keeps counting, including the time away. Without it (another browser) a session with
+saved answers counts from the server `startedAt`; one without starts from zero. The
+demo room has no `startedAt` and remembers nothing.
+
+While there is unsubmitted work, `beforeunload` covers reload and tab close, and
+`LeaveRoomGuard` asks before an in-app route change, including the Back button.
 
 `useAnswerSubmission` requests signed parameters from
 `POST /interview-session/:id/questions/:questionId/answer/signed-params`, uploads
@@ -93,8 +107,8 @@ Signed fields are sent unchanged with Cloudinary field names; resource type and
 file size limits stay out of the form. The upload service rejects empty,
 unsupported, oversized or mismatched assets and never sends application bearer
 tokens to Cloudinary. Transcript is editable, untrimmed, optional in content
-(empty string allowed), and limited to 50,000 characters. Speech-to-text is not
-part of this flow.
+(empty string allowed), and limited to 50,000 characters. Speech-to-text fills this field
+in the browser; see Speech Transcript and Speaking Pace.
 
 An uploaded asset is cached against its Blob identity. A failed PUT may reuse
 that asset, including after transcript edits; a completed retake needs new
@@ -216,7 +230,8 @@ unmount, and the panel is removed from production builds.
   Unsubmitted recordings exist only in room memory; successfully submitted videos
   are stored by Cloudinary and linked by the backend answer response. Reloading
   or leaving destroys local recordings. The tab-close warning covers unfinished
-  sessions and unsaved text/video; it is removed after successful submission.
+  sessions and unsaved text/video; it is removed after successful submission, and
+  in-app route changes ask first (see _Resuming and leaving_).
 - Each Blob has an object URL, revoked when replaced or when the room unmounts.
   Cleanup removes recorder/track listeners, settles pending stop promises,
   invalidates permission requests, and stops tracks safely under StrictMode.
@@ -238,7 +253,7 @@ data and never sends video to Cloudinary/backend; authenticated interview routes
 
 ## Speech Transcript and Speaking Pace
 
-`useSpeechTranscript` wraps the Web Speech API (`SpeechRecognition`, or the `webkit` prefix in Chrome/Edge/Safari). It is standalone and not yet wired into `InterviewRoom`, so the room's transcript is still typed by hand. It does not call `getUserMedia` or read `useInterviewRecorder` state: the recognizer asks for the microphone itself, and the page normally already holds the permission from the camera step. Any failure is only a message and never blocks recording, typing or submitting.
+`useSpeechTranscript` wraps the Web Speech API (`SpeechRecognition`, or the `webkit` prefix in Chrome/Edge/Safari). `InterviewRoom` uses it through `useAnswerTranscription` (see below). The hook itself does not call `getUserMedia` or read `useInterviewRecorder` state: the recognizer asks for the microphone itself, and the page normally already holds the permission from the camera step. Any failure is only a message and never blocks recording, typing or submitting.
 
 - **Contract**: `useSpeechTranscript({ lang = 'vi-VN', slowWpm = 90, fastWpm = 180, maxLength = 50000 })` returns `status` (`unsupported | idle | listening | error`), `isSupported`, `transcript` (final + interim, for display), `finalTranscript`, `interimTranscript`, `wordCount`, `currentWpm`, `averageWpm`, `pace` (`slow | good | fast | null`), `truncated`, `error` (`{ code, message }`, Vietnamese message) and `start`, `stop`, `reset`. Constants live in `src/constants/speech.ts`.
 - **Browsers**: Firefox has no `SpeechRecognition`, so `status` is `unsupported` from the first render and `start` does nothing.
@@ -246,7 +261,9 @@ data and never sends video to Cloudinary/backend; authenticated interview routes
 - **Continuous listening**: `continuous: true`. Chrome ends the session after silence or about a minute; while the user has not called `stop`, `onend` starts it again. Ends within one second of a start count as failures and, after three in a row, the hook reports `unstable`. `no-speech` and `aborted` are ignored. `not-allowed`, `audio-capture`, `network` and unknown errors stop the hook with `status: 'error'`.
 - **Pace**: words are counted by whitespace (`src/utils/speechRate.ts`). `currentWpm` covers the last 15 seconds (the elapsed time while the window is not full) and stays `null` until 8 seconds have been heard. `averageWpm` covers the whole answer. The clock counts listening time only, silence included, and is paused by `stop`. `pace` is `slow` below 90 and `fast` above 180 words per minute, which suits Vietnamese (about 120–160 when speaking naturally). Pace becomes `slow` again after a long silence.
 
-To wire it into the room: call the hook in `InterviewRoom`, `start()` when recording the current question begins and `stop()` when it ends (`reset()` when moving to the next question or on a retake); copy `transcript` into `drafts[currentQuestion.id]`, which stays editable; show `pace` next to `InterviewRecorder` with a `Badge`; and show `error.message` or an `unsupported` notice without disabling manual entry.
+### In the interview room
+
+`useAnswerTranscription` follows the recorder status: it listens while a take is recording and writes `typed text + transcript` into the answer box of that question, which is read-only while listening and editable afterwards. The speech belongs to its take, so a retake replaces the previous take's text (including edits made to it) and keeps what was typed before the first take; if the retake fails, the previous text comes back with the previous recording. Saving an answer releases the take, so late results cannot change what was submitted: the payload is exactly the text visible at the click. `SpeechFeedback` shows the pace, errors and the unsupported notice without disabling manual entry. The lobby discloses that some browsers send the audio to their vendor for recognition.
 
 ## Scoring Result & Live Updates
 

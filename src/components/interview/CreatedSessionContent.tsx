@@ -159,7 +159,16 @@ export function CreatedSessionContent({
         loadError={questions.loadError}
         isGenerating={questions.isGenerating}
         generateError={questions.generateError}
-        onGenerate={(count) => void questions.generate(count)}
+        regeneratingId={questions.regeneratingId}
+        regenerateFailure={questions.regenerateFailure}
+        isSaving={questions.isSaving}
+        isReplacing={questions.isReplacing}
+        onGenerate={(options) => void questions.generate(options)}
+        onRegenerate={(questionPublicId, options) =>
+          void questions.regenerate(questionPublicId, options)
+        }
+        onSaveToBank={questions.saveToBank}
+        onReplaceFromBank={questions.replaceFromBank}
         onReload={() => void questions.reload()}
       />
       <Button
@@ -167,7 +176,7 @@ export function CreatedSessionContent({
         className="self-start"
         onClick={onStart}
         isLoading={isStarting}
-        disabled={startDisabled || !hasQuestions || questions.isGenerating}
+        disabled={startDisabled || !hasQuestions || questions.isBusy}
       >
         Bắt đầu
       </Button>

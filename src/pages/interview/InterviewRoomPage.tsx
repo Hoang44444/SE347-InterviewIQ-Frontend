@@ -6,9 +6,11 @@ import { InterviewSessionRoom } from '@/components/interview/InterviewSessionRoo
 import {
   IntegrityStatus,
   InterviewRecorder,
+  LeaveRoomGuard,
   QuestionPanel,
   QuestionProgress,
   RecordingPlayback,
+  SpeechFeedback,
 } from '@/components/interview'
 import {
   Button,
@@ -20,14 +22,17 @@ import {
   Stack,
   Textarea,
 } from '@/components/ui'
+import { useAnswerTranscription } from '@/hooks/useAnswerTranscription'
 import { useInterviewClock } from '@/hooks/useInterviewClock'
 import { useAnswerSubmission } from '@/hooks/useAnswerSubmission'
 import { useSessionSubmission } from '@/hooks/useSessionSubmission'
 import { useScoringJob } from '@/hooks/useScoringJob'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { useEmotionCollector } from '@/hooks/useEmotionCollector'
 import { useIntegrityMonitor } from '@/hooks/useIntegrityMonitor'
 import { useInterviewRecorder } from '@/hooks/useInterviewRecorder'
 import { useToast } from '@/hooks/useToast'
+import { roomClockKey } from '@/constants/interview'
 import { ROUTES } from '@/routes/paths'
 import { interviewService } from '@/services/interviewService'
 import type { ApiError } from '@/types/api'
@@ -38,20 +43,42 @@ import type {
   Question,
 } from '@/types/interview'
 import { formatDuration } from '@/utils/format'
+import { storage } from '@/utils/storage'
 
 /* Lưu ý ở phòng chờ: không phải các bước tuần tự nên dùng dấu tích, không đánh số. */
 const LOBBY_NOTES = [
   'Mỗi câu ghi một video. Nộp xong câu này mới mở câu tiếp theo.',
   'Đồng hồ chỉ bắt đầu chạy khi bạn bấm Bắt đầu phỏng vấn.',
   'Bản ghi chưa nộp sẽ mất nếu tải lại hoặc rời trang.',
+  'Khi đang ghi, trình duyệt chép lời bạn nói vào ô trả lời. Một số trình duyệt như Chrome gửi âm thanh tới máy chủ của hãng để làm việc này.',
   'Trong lúc phỏng vấn, hệ thống ghi nhận rời tab, thoát toàn màn hình và phân tích hình camera ngay trên máy bạn (không có mặt, nhiều người, nhìn đi chỗ khác) để người xem xét. Hình không bị gửi đi để phân tích; chỉ loại và thời điểm cảnh báo được lưu vào lịch sử của bạn.',
+  'Máy bạn cũng tính một bản tóm tắt nét mặt cho mỗi câu (tỉ lệ thời gian tích cực, bình thản, ngạc nhiên và mức nhìn đi chỗ khác) gửi kèm câu trả lời để hỗ trợ chấm điểm sự tự tin. Chỉ có các con số, không có hình ảnh; đây chỉ là tín hiệu tham khảo.',
 ]
+
+/**
+ * Mốc đồng hồ để làm tiếp một phiên: ưu tiên mốc đã nhớ trên máy này. Máy khác (hoặc
+ * đã xoá storage) mà phiên có câu đã nộp thì dùng mốc của server.
+ */
+function rememberedStart(id: string, { startedAt }: Interview, hasAnswers: boolean) {
+  if (!startedAt) return null
+  const stored = storage.get<unknown>(roomClockKey(id))
+  if (typeof stored === 'number' && stored > 0 && stored <= Date.now()) return stored
+  const server = Date.parse(startedAt)
+  return hasAnswers && Number.isFinite(server) ? Math.min(server, Date.now()) : null
+}
 
 export function InterviewRoomPage() {
   const { id = '' } = useParams<{ id: string }>()
   const { state } = useLocation()
   const session = (state as InterviewRoomLocationState | null)?.session
-  return <InterviewSessionRoom key={id} id={id} knownSession={session} />
+  return (
+    <InterviewSessionRoom
+      key={id}
+      id={id}
+      knownSession={session}
+      liveRoom={<InterviewRoom id={id} />}
+    />
+  )
 }
 
 export function InterviewRoom({
@@ -77,7 +104,9 @@ export function InterviewRoom({
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   /** Câu trả lời đã gửi thành công, dùng để đánh dấu tiến độ và xem tổng kết. */
   const answerSubmission = useAnswerSubmission(id, service)
-  const { savedAnswers } = answerSubmission
+  const { savedAnswers, restore: restoreAnswers } = answerSubmission
+  /** Mốc đồng hồ của lần vào phòng trước; null khi đây là lần đầu. */
+  const [resumeFrom, setResumeFrom] = useState<number | null>(null)
   const [answerDurations, setAnswerDurations] = useState<Record<string, number>>({})
   const [isFinalizing, setIsFinalizing] = useState(false)
   // Ref khoá ngay cả hai click/Ctrl+Enter trước khi React kịp render disabled.
@@ -118,9 +147,21 @@ export function InterviewRoom({
       .then(([detail, list]) => {
         if (!active) return
 
+        const restored = detail.savedAnswers ?? []
+        const answered = new Set(restored.map((answer) => answer.questionPublicId))
+        const firstOpen = list.findIndex((question) => !answered.has(question.id))
+
         setInterview(detail)
         setQuestions(list)
-        setCurrentIndex(0)
+        setCurrentIndex(firstOpen === -1 ? Math.max(0, list.length - 1) : firstOpen)
+        restoreAnswers(restored)
+        setDrafts((previous) => ({
+          ...Object.fromEntries(
+            restored.map((answer) => [answer.questionPublicId, answer.transcript]),
+          ),
+          ...previous,
+        }))
+        setResumeFrom(rememberedStart(id, detail, restored.length > 0))
       })
       .catch((err: ApiError) => {
         if (active) setLoadError(err.message)
@@ -132,19 +173,39 @@ export function InterviewRoom({
     return () => {
       active = false
     }
-  }, [id, reloadToken, service])
+  }, [id, reloadToken, service, restoreAnswers])
+
+  // Nộp xong thì phiên đã đóng, không còn gì để vào lại.
+  useEffect(() => {
+    if (submission) storage.remove(roomClockKey(id))
+  }, [id, submission])
 
   const currentQuestion = questions[currentIndex]
   const currentDraft = currentQuestion ? (drafts[currentQuestion.id] ?? '') : ''
+  // Dùng chung detector của giám sát gian lận: không nạp model nhận diện mặt lần hai.
+  const emotion = useEmotionCollector({
+    questionId: currentQuestion?.id,
+    recording: recorder.status === 'recording',
+  })
   const integrity = useIntegrityMonitor({
     enabled: isStarted && !isFinished,
     stream: recorder.stream,
     questionId: currentQuestion?.id,
     sessionId: id,
     cheatLogs: service.cheatLogs,
+    onObservation: emotion.onObservation,
   })
   const violationCount = integrity.summary?.totalCount ?? integrity.events.length
+  const transcription = useAnswerTranscription({
+    recorderStatus: recorder.status,
+    recordings: recorder.recordings,
+    questionId: currentQuestion?.id,
+    text: currentDraft,
+    onChange: (questionId, text) => setDrafts((previous) => ({ ...previous, [questionId]: text })),
+  })
   const answeredIds = useMemo(() => new Set(Object.keys(savedAnswers)), [savedAnswers])
+  const answeredCount = questions.filter((question) => answeredIds.has(question.id)).length
+  const isResuming = resumeFrom !== null || answeredCount > 0
 
   const hasUnsaved = questions.some(
     (question) => (drafts[question.id] ?? '').trim() !== '' && !answeredIds.has(question.id),
@@ -196,7 +257,9 @@ export function InterviewRoom({
   function handleStart() {
     // Đồng hồ chỉ chạy khi camera và micro đã sẵn sàng ở phòng chờ.
     if (!currentQuestion || isStarted || actionRef.current || recorder.status !== 'ready') return
-    clock.start(currentQuestion.id)
+    const startedAt = resumeFrom ?? Date.now()
+    clock.start(currentQuestion.id, startedAt)
+    if (interview?.startedAt) storage.set(roomClockKey(id), startedAt)
     setIsStarted(true)
     // Toàn màn hình giúp phát hiện việc rời phòng; từ chối cũng không sao.
     void document.documentElement.requestFullscreen?.().catch(() => {})
@@ -244,11 +307,15 @@ export function InterviewRoom({
       // Nếu bản ghi đang ghi bị lỗi, không tự nộp bản ghi cũ thay cho bản vừa ghi.
       if (wasRecording && !finalized)
         throw new Error('Không chốt được bản ghi mới. Hãy kiểm tra bản ghi và thử lại.')
+      // Bài nộp lấy đúng chữ đang hiện trong ô; lời đến muộn không được sửa nó nữa.
+      transcription.release()
       setIsFinalizing(false)
       const answer = await answerSubmission.save(
         currentQuestion.id,
         currentDraft,
         finalized ?? recorder.recordings[currentQuestion.id],
+        // Tính sau khi đã dừng ghi để gồm đủ mẫu; null khi không đủ dữ liệu đáng tin.
+        emotion.summarize(currentQuestion.id),
       )
       if (!activeRef.current || !answer) return
       setAnswerDurations((previous) => ({ ...previous, [currentQuestion.id]: answerSeconds }))
@@ -350,9 +417,12 @@ export function InterviewRoom({
     )
   }
 
+  const leaveGuard = <LeaveRoomGuard when={shouldWarnOnLeave} />
+
   if (isFinished) {
     return (
       <Stack gap="lg">
+        {leaveGuard}
         <PageHeader
           title={
             !submission
@@ -443,10 +513,12 @@ export function InterviewRoom({
                 {formatDuration(sessionTiming?.durationSeconds ?? 0)}
               </dd>
             </div>
-            <div>
-              <dt className="text-sm text-content-subtle">Vị trí</dt>
-              <dd className="mt-1 text-2xl font-semibold text-content">{interview.position}</dd>
-            </div>
+            {interview.position && (
+              <div>
+                <dt className="text-sm text-content-subtle">Vị trí</dt>
+                <dd className="mt-1 text-2xl font-semibold text-content">{interview.position}</dd>
+              </div>
+            )}
           </dl>
 
           <Stack direction="row" gap="sm" className="mt-8">
@@ -465,9 +537,11 @@ export function InterviewRoom({
                   <h3 className="font-medium text-content">
                     Câu {index + 1}: {question.content}
                   </h3>
-                  <p className="text-sm text-content-subtle">
-                    Thời gian trả lời: {formatDuration(answerDurations[question.id] ?? 0)}
-                  </p>
+                  {answerDurations[question.id] !== undefined && (
+                    <p className="text-sm text-content-subtle">
+                      Thời gian trả lời: {formatDuration(answerDurations[question.id])}
+                    </p>
+                  )}
                   <p className="text-sm text-content-subtle">
                     Thời lượng video: {formatDuration(answer.durationSeconds)}
                   </p>
@@ -513,10 +587,11 @@ export function InterviewRoom({
     )
   }
 
-  const totalMinutes = Math.max(
-    1,
-    Math.round(questions.reduce((sum, question) => sum + question.suggestedSeconds, 0) / 60),
+  const suggestedTotal = questions.reduce(
+    (sum, question) => sum + (question.suggestedSeconds ?? 0),
+    0,
   )
+  const totalMinutes = suggestedTotal > 0 ? Math.max(1, Math.round(suggestedTotal / 60)) : 0
   const isReady = recorder.status === 'ready'
   const isAnswered = answeredIds.has(currentQuestion.id)
   const isLastAnswered = isAnswered && currentIndex === questions.length - 1
@@ -541,6 +616,7 @@ export function InterviewRoom({
 
   return (
     <Stack gap="lg">
+      {leaveGuard}
       <PageHeader
         title={interview.title}
         description={interview.position}
@@ -607,10 +683,20 @@ export function InterviewRoom({
                   <div>
                     <h2 className="text-xl font-semibold text-content">Phòng chờ</h2>
                     <p className="mt-1 text-sm text-content-muted">
-                      {questions.length} câu hỏi, khoảng {totalMinutes} phút
+                      {questions.length} câu hỏi
+                      {totalMinutes > 0 && `, khoảng ${totalMinutes} phút`}
                     </p>
                   </div>
                 </div>
+
+                {isResuming && (
+                  <p className="rounded-control bg-brand-50 px-4 py-3 text-sm text-brand-700">
+                    {answeredCount === questions.length
+                      ? `Đã nộp đủ ${questions.length} câu. Bấm Tiếp tục để nộp bài phỏng vấn.`
+                      : `Bạn đã nộp ${answeredCount}/${questions.length} câu và sẽ làm tiếp từ câu ${currentIndex + 1}.`}{' '}
+                    Đồng hồ tính cả thời gian bạn rời phòng.
+                  </p>
+                )}
 
                 <ul className="flex flex-col gap-3 text-sm text-content-muted">
                   {LOBBY_NOTES.map((note) => (
@@ -629,7 +715,7 @@ export function InterviewRoom({
 
                 <div>
                   <Button size="lg" fullWidth onClick={handleStart} disabled={!isReady}>
-                    Bắt đầu phỏng vấn
+                    {isResuming ? 'Tiếp tục phỏng vấn' : 'Bắt đầu phỏng vấn'}
                   </Button>
                   {!isReady && (
                     <p className="mt-2 text-sm text-content-subtle">
@@ -647,15 +733,26 @@ export function InterviewRoom({
           phase={isStarted ? 'room' : 'lobby'}
           questionId={currentQuestion.id}
           questionNumber={currentIndex + 1}
-          disabled={isBusy || isAnswered || answerSubmission.blocked}
+          // Ở phòng chờ câu đang mở có thể đã nộp (vào lại phòng) mà vẫn cần bật camera.
+          disabled={isBusy || (isStarted && isAnswered) || answerSubmission.blocked}
           className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1"
           statusSlot={
             isStarted && !isFinished ? (
-              <IntegrityStatus
-                activeTypes={integrity.activeTypes}
-                violationCount={violationCount}
-                detectorState={integrity.detectorState}
-              />
+              <Stack gap="sm">
+                {!isAnswered && (
+                  <SpeechFeedback
+                    status={transcription.status}
+                    error={transcription.error}
+                    pace={transcription.pace}
+                    wpm={transcription.wpm}
+                  />
+                )}
+                <IntegrityStatus
+                  activeTypes={integrity.activeTypes}
+                  violationCount={violationCount}
+                  detectorState={integrity.detectorState}
+                />
+              </Stack>
             ) : undefined
           }
           actions={
@@ -678,7 +775,12 @@ export function InterviewRoom({
             <Textarea
               label="Ghi chú câu trả lời"
               maxLength={50000}
-              hint="Không bắt buộc. Ghi ý chính hoặc chép lại câu trả lời, gửi kèm video khi nộp. Ctrl + Enter để nộp."
+              hint={
+                transcription.isListening
+                  ? 'Đang chép lời bạn nói. Dừng ghi để sửa nội dung. Ctrl + Enter để nộp.'
+                  : 'Không bắt buộc. Nội dung này gửi kèm video và dùng để chấm điểm. Ctrl + Enter để nộp.'
+              }
+              readOnly={transcription.isListening}
               value={currentDraft}
               onChange={(event) => handleDraftChange(event.target.value)}
               onKeyDown={handleTextareaKeyDown}

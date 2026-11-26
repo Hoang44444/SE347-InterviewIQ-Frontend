@@ -1,4 +1,5 @@
 import type { CheatLogService } from '@/types/cheat'
+import type { EmotionSummary } from '@/types/emotion'
 import type { InterviewRecording } from '@/types/recording'
 
 export type InterviewStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled'
@@ -26,19 +27,11 @@ export interface StartInterviewSessionResult {
 
 export type QuestionKind = 'behavioral' | 'technical' | 'coding'
 
-export interface Question {
-  id: string
-  kind: QuestionKind
-  content: string
-  /** Thời gian gợi ý để trả lời, tính bằng giây. */
-  suggestedSeconds: number
-}
-
 export type QuestionDomain = 'TECHNICAL' | 'BEHAVIORAL' | 'SITUATIONAL'
 
 export type QuestionDifficulty = 'EASY' | 'MEDIUM' | 'HARD'
 
-/** Câu hỏi do AI sinh cho một phiên; khác `Question` của phòng phỏng vấn cũ. */
+/** Câu hỏi do AI sinh cho một phiên, đúng hình dạng backend trả về. */
 export interface GeneratedQuestion {
   publicId: string
   orderIndex: number
@@ -53,16 +46,28 @@ export interface SessionQuestions {
   questions: GeneratedQuestion[]
 }
 
+/** Câu hỏi như phòng phỏng vấn dùng. */
+export interface Question {
+  id: string
+  content: string
+  domain: QuestionDomain
+  difficulty: QuestionDifficulty
+  /** Thời gian gợi ý để trả lời (giây). Backend chưa trả trường này, chỉ phòng demo có. */
+  suggestedSeconds?: number
+}
+
+/** Thông tin buổi phỏng vấn mà phòng cần hiển thị và nộp bài. */
 export interface Interview {
   id: string
   title: string
-  position: string
-  status: InterviewStatus
-  questionCount: number
-  createdAt: string
-  score?: number
+  /** Backend chưa trả vị trí ứng tuyển, chỉ phòng demo có. */
+  position?: string
   /** CV gắn với session, cần khi nộp session để chấm điểm. */
   cvPublicId?: string
+  /** Mốc server bắt đầu phiên. Vắng ở phòng demo: phòng đó không khôi phục gì sau khi tải lại. */
+  startedAt?: string
+  /** Câu trả lời đã lưu từ trước, dùng khi vào lại phòng. */
+  savedAnswers?: SavedAnswer[]
 }
 
 export interface Answer {
@@ -75,6 +80,12 @@ export interface Answer {
   createdAt: string
   updatedAt: string
 }
+
+/** Phần của một câu trả lời đã lưu mà phòng cần; đọc lại từ backend chỉ có chừng này. */
+export type SavedAnswer = Pick<
+  Answer,
+  'questionPublicId' | 'videoUrl' | 'transcript' | 'durationSeconds'
+>
 
 export interface InterviewRecordingSignedParams {
   uploadUrl: string
@@ -91,6 +102,8 @@ export interface InterviewRecordingSignedParams {
 export interface SaveAnswerPayload {
   cloudinaryPublicId: string
   transcript: string
+  /** Tóm tắt biểu cảm tính trên máy; vắng khi camera hoặc model không cho đủ dữ liệu. */
+  emotionSummary?: EmotionSummary
 }
 
 export type ScoringJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
@@ -169,3 +182,14 @@ export interface InterviewRoomLocationState {
   createdSession?: CreatedInterviewSession
   session?: InterviewSession
 }
+
+/** Tuỳ chọn khi sinh cả bộ; trường bỏ trống thì không gửi lên backend. */
+export interface GenerateQuestionsOptions {
+  /** 3 đến 10, mặc định 5 ở backend. */
+  count?: number
+  domain?: QuestionDomain
+  difficulty?: QuestionDifficulty
+}
+
+/** Tuỳ chọn khi sinh lại một câu; bỏ trống thì giữ giá trị của câu cũ. */
+export type RegenerateQuestionOptions = Pick<GenerateQuestionsOptions, 'domain' | 'difficulty'>

@@ -217,7 +217,7 @@ export function InterviewRecorder({
           open={isRetakeOpen}
           onClose={() => setIsRetakeOpen(false)}
           title={`Ghi lại câu ${questionNumber}`}
-          description="Bản ghi mới sẽ thay thế bản ghi hiện tại khi hoàn tất và có dữ liệu. Nếu ghi lỗi hoặc rỗng, bản ghi hiện tại vẫn được giữ."
+          description="Bản ghi mới và lời chép của nó sẽ thay bản hiện tại khi hoàn tất và có dữ liệu. Nếu ghi lỗi hoặc rỗng, bản hiện tại vẫn được giữ."
           size="sm"
           footer={
             <>

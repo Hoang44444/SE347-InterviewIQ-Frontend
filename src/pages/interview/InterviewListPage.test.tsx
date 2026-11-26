@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { InternalAxiosRequestConfig } from 'axios'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { afterEach, expect, test } from 'vitest'
+import { Route, Routes } from 'react-router-dom'
+import { afterEach, expect, test, vi } from 'vitest'
 
 import { InterviewListPage } from './InterviewListPage'
 import { InterviewRoomPage } from './InterviewRoomPage'
@@ -9,9 +9,15 @@ import { InterviewRoomPage } from './InterviewRoomPage'
 import { STORAGE_KEYS } from '@/constants'
 import { ToastProvider } from '@/contexts/ToastProvider'
 import { apiClient } from '@/services/apiClient'
-import { generatedQuestions, session, sessionPage, startedSession } from '@/test/sessionFixtures'
+import { roomLoadData, session, sessionPage, startedSession } from '@/test/sessionFixtures'
+import { TestRouter } from '@/test/TestRouter'
 import type { InterviewSession } from '@/types/interview'
 import { storage } from '@/utils/storage'
+
+/* socket.io là ranh giới mạng thật: thay bằng socket giả để test không mở kết nối. */
+vi.mock('socket.io-client', () => ({
+  io: () => ({ connected: false, active: false, connect: vi.fn(), disconnect: vi.fn() }),
+}))
 
 const cvId = '00000000-0000-4000-8000-000000000002'
 const sessionId = '00000000-0000-4000-8000-000000000003'
@@ -47,9 +53,11 @@ function setup({
   const requests: InternalAxiosRequestConfig[] = []
   let created: InterviewSession | null = null
   apiClient.defaults.adapter = async (config) => {
-    if (config.url?.endsWith('/questions') && config.method === 'get') {
+    // Nội dung phòng được tải riêng, không tính vào các request đang kiểm tra.
+    const roomData = roomLoadData(config)
+    if (roomData) {
       return {
-        data: { success: true, data: generatedQuestions },
+        data: { success: true, data: roomData },
         status: 200,
         statusText: 'OK',
         headers: {},
@@ -90,29 +98,24 @@ function setup({
   storage.set(STORAGE_KEYS.accessToken, 'test-token')
   render(
     <ToastProvider>
-      <MemoryRouter initialEntries={['/interviews']}>
+      <TestRouter initialEntries={['/interviews']}>
         <Routes>
           <Route path="/interviews" element={<InterviewListPage />} />
           <Route path="/interviews/:id" element={<InterviewRoomPage />} />
         </Routes>
-      </MemoryRouter>
+      </TestRouter>
     </ToastProvider>,
   )
   fireEvent.click(screen.getByRole('button', { name: 'Tạo buổi mới' }))
   return requests
 }
 
-test('create → opens API-confirmed room → starts and preserves server timestamp', async () => {
+test('create → opens API-confirmed room → starts and enters the interview room', async () => {
   const requests = setup()
   await fillForm()
   submit()
   fireEvent.click(await findEnabledStart())
-  await screen.findByText(/Bắt đầu lúc/)
-  expect(screen.getByText('Đang diễn ra')).toBeInTheDocument()
-  expect(screen.getByText(/Bắt đầu lúc/).querySelector('time')).toHaveAttribute(
-    'datetime',
-    startedSession.startedAt,
-  )
+  expect(await screen.findByRole('heading', { name: 'Phòng chờ' })).toBeInTheDocument()
   const start = requests.find((r) => r.url?.endsWith('/start'))!
   expect(start.url).toBe(`/interview-session/${sessionId}/start`)
   expect(start.method).toBe('post')
@@ -314,9 +317,10 @@ test('keeps creation disabled during CV loading and retries a failed CV request'
 test('opens the newly created room URL in a fresh navigation without using legacy room APIs', async () => {
   const requests: InternalAxiosRequestConfig[] = []
   apiClient.defaults.adapter = async (config) => {
-    if (config.url?.endsWith('/questions') && config.method === 'get') {
+    const roomData = roomLoadData(config)
+    if (roomData) {
       return {
-        data: { success: true, data: generatedQuestions },
+        data: { success: true, data: roomData },
         status: 200,
         statusText: 'OK',
         headers: {},
@@ -334,11 +338,11 @@ test('opens the newly created room URL in a fresh navigation without using legac
   }
   render(
     <ToastProvider>
-      <MemoryRouter initialEntries={[`/interviews/${sessionId}?created=1`]}>
+      <TestRouter initialEntries={[`/interviews/${sessionId}?created=1`]}>
         <Routes>
           <Route path="/interviews/:id" element={<InterviewRoomPage />} />
         </Routes>
-      </MemoryRouter>
+      </TestRouter>
     </ToastProvider>,
   )
   expect(await screen.findByRole('heading', { name: 'Bộ câu hỏi phỏng vấn' })).toBeInTheDocument()

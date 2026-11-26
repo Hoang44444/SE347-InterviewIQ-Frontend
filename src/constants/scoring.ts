@@ -44,6 +44,7 @@ export interface EmotionMeta {
 
 /** Thứ tự cố định để thanh cảm xúc và chú thích nhất quán giữa các câu hỏi. */
 export const EMOTION_ORDER: readonly EmotionLabel[] = [
+  'positive',
   'neutral',
   'happy',
   'surprised',
@@ -53,8 +54,9 @@ export const EMOTION_ORDER: readonly EmotionLabel[] = [
   'disgusted',
 ]
 
-/** Ánh xạ 7 nhãn cảm xúc sang nhãn tiếng Việt và token màu có sẵn trong tokens.css. */
+/** Ánh xạ nhãn cảm xúc sang nhãn tiếng Việt và token màu có sẵn trong tokens.css. */
 export const EMOTION_META: Record<EmotionLabel, EmotionMeta> = {
+  positive: { label: 'Tích cực', barClass: 'bg-success-600' },
   neutral: { label: 'Bình thản', barClass: 'bg-border-strong' },
   happy: { label: 'Vui vẻ', barClass: 'bg-success-600' },
   surprised: { label: 'Ngạc nhiên', barClass: 'bg-info-600' },

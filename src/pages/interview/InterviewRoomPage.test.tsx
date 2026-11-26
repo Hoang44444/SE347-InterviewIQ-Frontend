@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, test, vi } from 'vitest'
 
 import { InterviewRoom } from './InterviewRoomPage'
@@ -8,6 +7,7 @@ import { ToastProvider } from '@/contexts/ToastProvider'
 import { answer, deferred } from '@/test/interviewFixtures'
 import { mockMediaDevices } from '@/test/mediaDevices'
 import { roomService } from '@/test/roomService'
+import { TestRouter } from '@/test/TestRouter'
 import type { Answer, InterviewRoomService } from '@/types/interview'
 
 beforeEach(() => {
@@ -16,11 +16,11 @@ beforeEach(() => {
 
 function renderLobby(service: InterviewRoomService) {
   return render(
-    <MemoryRouter>
+    <TestRouter>
       <ToastProvider>
         <InterviewRoom id="session" service={service} />
       </ToastProvider>
-    </MemoryRouter>,
+    </TestRouter>,
   )
 }
 /** Phòng chờ: bật camera và micro trước, nút bắt đầu chỉ mở khi thiết bị sẵn sàng. */

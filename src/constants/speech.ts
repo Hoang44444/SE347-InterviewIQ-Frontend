@@ -1,3 +1,6 @@
+import type { BadgeProps } from '@/components/ui'
+import type { PaceStatus } from '@/types/speech'
+
 /** Ngôn ngữ nhận dạng giọng nói mặc định. */
 export const SPEECH_LANG_DEFAULT = 'vi-VN'
 
@@ -23,3 +26,15 @@ export const SPEECH_RESTART_GRACE_MS = 1_000
 
 /** Chu kỳ làm mới tốc độ nói khi đang nghe (ms). */
 export const SPEECH_TICK_MS = 1_000
+
+export const SPEECH_PACE_LABEL: Record<PaceStatus, string> = {
+  slow: 'Nói hơi chậm',
+  good: 'Tốc độ vừa',
+  fast: 'Nói hơi nhanh',
+}
+
+export const SPEECH_PACE_TONE: Record<PaceStatus, NonNullable<BadgeProps['tone']>> = {
+  slow: 'warning',
+  good: 'success',
+  fast: 'warning',
+}

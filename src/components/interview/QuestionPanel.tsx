@@ -1,6 +1,6 @@
 import { AiMascot, type AiMascotMood } from '@/components/brand/AiMascot'
 import { Badge } from '@/components/ui'
-import { KIND_LABEL, KIND_TONE } from '@/constants/interview'
+import { DIFFICULTY_LABEL, DIFFICULTY_TONE, DOMAIN_LABEL, DOMAIN_TONE } from '@/constants/interview'
 import type { Question } from '@/types/interview'
 import { cn } from '@/utils/cn'
 import { formatDuration } from '@/utils/format'
@@ -21,7 +21,10 @@ export interface QuestionPanelProps {
   className?: string
 }
 
-/** Nhân vật AI phỏng vấn đọc câu hỏi, kèm thanh thời gian so với thời gian gợi ý. */
+/**
+ * Nhân vật AI phỏng vấn đọc câu hỏi, kèm thời gian đã trả lời. Câu có thời gian gợi ý
+ * thì thêm mốc so sánh và thanh tiến độ.
+ */
 export function QuestionPanel({
   question,
   index,
@@ -32,7 +35,9 @@ export function QuestionPanel({
   caption,
   className,
 }: QuestionPanelProps) {
-  const ratio = question.suggestedSeconds > 0 ? questionSeconds / question.suggestedSeconds : 0
+  const suggestedSeconds = question.suggestedSeconds ?? 0
+  const hasSuggestion = suggestedSeconds > 0
+  const ratio = hasSuggestion ? questionSeconds / suggestedSeconds : 0
   const isOver = ratio >= 1
   const isNear = !isOver && ratio >= WARNING_RATIO
 
@@ -56,7 +61,10 @@ export function QuestionPanel({
           <span className="text-sm font-medium text-content-subtle">
             Câu {index + 1}/{total}
           </span>
-          <Badge tone={KIND_TONE[question.kind]}>{KIND_LABEL[question.kind]}</Badge>
+          <Badge tone={DOMAIN_TONE[question.domain]}>{DOMAIN_LABEL[question.domain]}</Badge>
+          <Badge tone={DIFFICULTY_TONE[question.difficulty]}>
+            {DIFFICULTY_LABEL[question.difficulty]}
+          </Badge>
           {isAnswered && <Badge tone="success">Đã lưu</Badge>}
         </div>
 
@@ -71,7 +79,11 @@ export function QuestionPanel({
         <div className="mt-4">
           <div className="flex items-baseline justify-between gap-3 text-sm">
             <span className={isOver ? 'text-warning-700' : 'text-content-muted'}>
-              {isOver ? 'Đã quá thời gian gợi ý' : 'Thời gian gợi ý'}
+              {!hasSuggestion
+                ? 'Thời gian trả lời'
+                : isOver
+                  ? 'Đã quá thời gian gợi ý'
+                  : 'Thời gian gợi ý'}
             </span>
             <span
               className={cn(
@@ -79,24 +91,27 @@ export function QuestionPanel({
                 isOver ? 'text-warning-700' : 'text-content',
               )}
             >
-              {formatDuration(questionSeconds)} / {formatDuration(question.suggestedSeconds)}
+              {formatDuration(questionSeconds)}
+              {hasSuggestion && ` / ${formatDuration(suggestedSeconds)}`}
             </span>
           </div>
-          <div aria-hidden className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
-            {/*
-             * Co giãn bằng scaleX (chỉ chạy trên compositor) thay vì width. Đồng hồ nhảy
-             * mỗi giây nên chuyển động tuyến tính 1s cho thanh trôi liền, không giật từng nấc.
-             * key theo câu hỏi để sang câu mới thanh về 0 ngay, không chạy lùi.
-             */}
-            <div
-              key={question.id}
-              className={cn(
-                'h-full origin-left transition-[scale,background-color] duration-1000 ease-linear',
-                isOver || isNear ? 'bg-warning-600' : 'bg-brand-600',
-              )}
-              style={{ scale: `${Math.min(ratio, 1)} 1` }}
-            />
-          </div>
+          {hasSuggestion && (
+            <div aria-hidden className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
+              {/*
+               * Co giãn bằng scaleX (chỉ chạy trên compositor) thay vì width. Đồng hồ nhảy
+               * mỗi giây nên chuyển động tuyến tính 1s cho thanh trôi liền, không giật từng nấc.
+               * key theo câu hỏi để sang câu mới thanh về 0 ngay, không chạy lùi.
+               */}
+              <div
+                key={question.id}
+                className={cn(
+                  'h-full origin-left transition-[scale,background-color] duration-1000 ease-linear',
+                  isOver || isNear ? 'bg-warning-600' : 'bg-brand-600',
+                )}
+                style={{ scale: `${Math.min(ratio, 1)} 1` }}
+              />
+            </div>
+          )}
         </div>
       </div>
     </section>

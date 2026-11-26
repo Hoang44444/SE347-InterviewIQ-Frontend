@@ -24,6 +24,30 @@ npm run dev          # dev server tại http://localhost:5173
 
 Mở `http://localhost:5173/design-system` để xem toàn bộ token và component dùng chung.
 
+Dùng Node 24 (ghi trong `.nvmrc`, CI và Docker cùng dùng bản này).
+
+## Chạy bằng Docker
+
+```bash
+docker compose up -d --build   # bản production tại http://localhost:5173
+docker compose down
+```
+
+- Backend chạy riêng bằng `compose.yml` của repo backend.
+- Backend chỉ cho phép CORS từ cổng 5173 và 3000, nên đừng đổi cổng (`WEB_PORT`) khi cần gọi API. Tắt `npm run dev` trước vì cùng dùng cổng 5173.
+- Biến `VITE_*` được nhúng vào bundle lúc build. Compose đọc từ `.env`; đổi giá trị thì chạy lại với `--build`.
+
+## CI và Docker Hub
+
+GitHub Actions chạy trên pull request vào `main` và chạy lại sau khi merge. Muốn đẩy image `<user>/interviewiq-frontend` (tag `latest` và `sha-…`) sau mỗi lần merge, khai báo trong Settings của repo:
+
+| Loại | Tên | Ghi chú |
+| --- | --- | --- |
+| Secret | `DOCKERHUB_USERNAME` | Thiếu một trong hai secret thì bỏ qua bước push |
+| Secret | `DOCKERHUB_TOKEN` | Access token, không dùng mật khẩu |
+| Variable | `VITE_API_URL` | Địa chỉ backend nhúng vào image; mặc định `http://localhost:3000/api` |
+| Variable | `VITE_APP_NAME` | Tuỳ chọn |
+
 ## Scripts
 
 | Lệnh | Tác dụng |
@@ -35,6 +59,7 @@ Mở `http://localhost:5173/design-system` để xem toàn bộ token và compon
 | `npm run lint:fix` | Tự sửa các lỗi ESLint sửa được |
 | `npm run format` | Format toàn bộ source bằng Prettier |
 | `npm run typecheck` | Chỉ kiểm tra kiểu, không build |
+| `npm test` | Chạy test một lần bằng Vitest |
 
 ## Biến môi trường
 

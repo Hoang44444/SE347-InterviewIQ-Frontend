@@ -40,9 +40,10 @@ export function createInterviewClock(now: () => number = Date.now) {
 
   return {
     snapshot,
-    start(id: string) {
+    /** `from` là mốc đã nhớ khi vào lại phòng; không truyền thì tính từ bây giờ. */
+    start(id: string, from?: number) {
       if (startedAt !== null) return
-      startedAt = now()
+      startedAt = from ?? now()
       openQuestion(id)
     },
     openQuestion,
