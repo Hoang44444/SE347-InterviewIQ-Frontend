@@ -1,5 +1,6 @@
 export { CheatLogPanel, type CheatLogPanelProps } from './CheatLogPanel'
 export { HistoryFilters, type HistoryFiltersProps } from './HistoryFilters'
+export { HistoryQuestionPanel, type HistoryQuestionPanelProps } from './HistoryQuestionPanel'
 export { HistoryResultPanel, type HistoryResultPanelProps } from './HistoryResultPanel'
 export { HistoryRow, type HistoryRowProps } from './HistoryRow'
 export { HistoryTimeline, type HistoryTimelineProps } from './HistoryTimeline'

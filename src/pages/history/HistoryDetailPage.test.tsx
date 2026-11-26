@@ -10,6 +10,7 @@ import { ToastProvider } from '@/contexts/ToastProvider'
 import { apiClient } from '@/services/apiClient'
 import { openScoringStream, type OpenScoringStreamOptions } from '@/services/scoringStreamService'
 import type { InterviewHistoryDetail } from '@/types/history'
+import type { SessionQuestions } from '@/types/interview'
 import type { SessionResult } from '@/types/scoring'
 import { storage } from '@/utils/storage'
 
@@ -107,6 +108,7 @@ afterEach(() => {
 interface Backend {
   detail?: () => InterviewHistoryDetail
   result?: () => SessionResult
+  questions?: () => SessionQuestions
 }
 
 /** Dựng trang với một backend giả, trả về danh sách URL đã gọi. */
@@ -124,6 +126,10 @@ function setup(id: string, backend: Backend = {}) {
       config,
     })
 
+    if (config.url?.includes('/interview-session/')) {
+      if (!backend.questions) throw httpError(config, 404, 'Questions not found')
+      return envelope(backend.questions())
+    }
     if (config.url?.includes('/scoring/')) {
       if (!backend.result) throw httpError(config, 404, 'Scoring result not found')
       return envelope(backend.result())
@@ -181,7 +187,8 @@ test('buổi đang chấm thì nói rõ đang chờ và không gọi endpoint k�
 
   expect(await screen.findByText('Hệ thống đang chấm bài')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Kiểm tra lại' })).toBeInTheDocument()
-  expect(urls).toEqual([`/interviews/${sessionId}`])
+  expect(urls).toContain(`/interviews/${sessionId}`)
+  expect(urls.some((url) => url.includes('/scoring/'))).toBe(false)
 })
 
 test('buổi chưa nộp thì dẫn vào phòng phỏng vấn', async () => {
@@ -263,4 +270,109 @@ test('nhận sự kiện SSE answer-scored thì bắn toast và tải kết qu�
 
   expect(await screen.findByText('Đã có kết quả chấm điểm')).toBeInTheDocument()
   expect(await screen.findByText('7,4')).toBeInTheDocument()
+})
+
+/**
+ * API lịch sử chừa sẵn `questions` và đó là nguồn duy nhất có kèm video và
+ * transcript, nên khi nó có dữ liệu thì trang không gọi thêm request nào nữa.
+ */
+test('dùng câu hỏi nhúng trong chi tiết, hiện video và transcript từng câu', async () => {
+  const urls = setup(sessionId, {
+    detail: () => ({
+      ...detail,
+      questions: [
+        {
+          id: 'q-1',
+          orderIndex: 1,
+          content: 'Giải thích event loop trong Node.js.',
+          domain: 'TECHNICAL',
+          difficulty: 'HARD',
+          answer: {
+            videoUrl: 'https://res.cloudinary.com/demo/video/upload/a1.webm',
+            transcript: 'Event loop xử lý callback theo từng pha.',
+            durationSeconds: 125,
+          },
+        },
+        {
+          id: 'q-2',
+          orderIndex: 2,
+          content: 'Kể về một lần bạn xử lý sự cố production.',
+          domain: 'BEHAVIORAL',
+          difficulty: 'MEDIUM',
+          answer: null,
+        },
+      ],
+    }),
+    result: () => result,
+  })
+
+  expect(await screen.findByText('Giải thích event loop trong Node.js.')).toBeInTheDocument()
+  expect(screen.getByText('Event loop xử lý callback theo từng pha.')).toBeInTheDocument()
+  expect(screen.getByLabelText('Video câu trả lời 1')).toHaveAttribute(
+    'src',
+    'https://res.cloudinary.com/demo/video/upload/a1.webm',
+  )
+  expect(screen.getByText('Câu này không có bản ghi trả lời.')).toBeInTheDocument()
+  expect(urls.some((url) => url.includes('/interview-session/'))).toBe(false)
+})
+
+test('chi tiết chưa có câu hỏi thì lấy bộ câu hỏi của phiên và nói rõ thiếu bản ghi', async () => {
+  const urls = setup(sessionId, {
+    detail: () => detail,
+    result: () => result,
+    questions: () => ({
+      sessionPublicId: sessionId,
+      questions: [
+        {
+          publicId: 'g-1',
+          orderIndex: 1,
+          content: 'Bạn xử lý xung đột trong nhóm thế nào?',
+          domain: 'BEHAVIORAL',
+          difficulty: 'EASY',
+        },
+      ],
+    }),
+  })
+
+  expect(await screen.findByText('Bạn xử lý xung đột trong nhóm thế nào?')).toBeInTheDocument()
+  expect(screen.getByText('Chưa đọc được video và transcript của câu này.')).toBeInTheDocument()
+  expect(urls).toContain(`/interview-session/${sessionId}/questions`)
+})
+
+// 404 ở đây nghĩa là buổi không có bộ câu hỏi nào đọc được, không phải hệ thống
+// lỗi, nên khối này nói ngắn gọn chứ không hiện báo đỏ kèm nút thử lại.
+test('không đọc được bộ câu hỏi thì nói gọn, không dựng báo lỗi', async () => {
+  setup(sessionId, { detail: () => detail, result: () => result })
+
+  expect(
+    await screen.findByText('Không đọc được danh sách câu hỏi của buổi này.'),
+  ).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Thử lại' })).not.toBeInTheDocument()
+})
+
+/*
+ * Hook kết quả từng bị tắt khi `detail.score` có dữ liệu, để tiết kiệm một
+ * request. Backend đổ dữ liệu vào field đó là mọi buổi đã chấm xong hiện ra
+ * "Chưa lấy được điểm", vì không nhánh nào đọc `detail.score` cả.
+ */
+test('buổi đã chấm vẫn hiện điểm khi chi tiết đã kèm sẵn score', async () => {
+  const urls = setup(sessionId, {
+    detail: () => ({
+      ...detail,
+      score: {
+        contentScore: 8,
+        relevanceScore: 7.5,
+        confidenceScore: 6.5,
+        overallScore: 7.4,
+        scoredAt: '2026-10-20T08:14:02.000Z',
+      },
+      summary: { overallFeedback: 'Tốt', strengths: [], improvements: [] },
+    }),
+    result: () => result,
+  })
+
+  expect(await screen.findByText('7,4')).toBeInTheDocument()
+  expect(screen.queryByText('Chưa lấy được điểm')).not.toBeInTheDocument()
+  // Endpoint Scoring có biểu đồ cảm xúc và metadata mà API lịch sử không trả.
+  expect(urls).toContain(`/scoring/sessions/${sessionId}/result`)
 })

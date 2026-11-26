@@ -31,30 +31,47 @@ export interface InterviewHistoryCv {
   fileName: string
 }
 
-/** Một câu hỏi của buổi, kèm câu trả lời nếu đã nộp. */
+/**
+ * Câu trả lời đã nộp cho một câu hỏi.
+ *
+ * videoUrl là link Cloudinary backend trả về sau khi lưu câu trả lời; null khi
+ * asset đã bị xoá hoặc response không kèm link phát lại.
+ */
+export interface InterviewHistoryAnswer {
+  videoUrl: string | null
+  /** Chuỗi rỗng là câu trả lời không có lời; null khi response không kèm transcript. */
+  transcript: string | null
+  /** Thời lượng video do backend xác minh, không phải thời gian người dùng nghĩ. */
+  durationSeconds: number | null
+}
+
+/**
+ * Một câu hỏi của buổi, kèm câu trả lời nếu đã nộp.
+ *
+ * domain và difficulty nhận null vì lớp chuẩn hoá ở `parseHistoryQuestions` hạ
+ * về null khi giá trị trả về không khớp enum đã biết — UI bỏ badge tương ứng
+ * chứ không coi cả câu hỏi là dữ liệu lỗi.
+ */
 export interface InterviewHistoryQuestion {
   /** publicId của câu hỏi. */
   id: string
+  /** Thứ tự backend gán. Chỉ dùng để sắp xếp, không dùng làm số hiển thị. */
   orderIndex: number
   content: string
-  domain: QuestionDomain
-  difficulty: QuestionDifficulty
-  answer: {
-    videoUrl: string | null
-    durationSeconds: number | null
-    /** Chuỗi rỗng là câu trả lời không có lời. */
-    transcript: string | null
-  } | null
+  domain: QuestionDomain | null
+  difficulty: QuestionDifficulty | null
+  /** null khi câu chưa được trả lời, hoặc response không kèm phần trả lời. */
+  answer: InterviewHistoryAnswer | null
 }
 
 /**
  * Chi tiết một buổi phỏng vấn (GET /interviews/:id).
  *
- * Ba field score/summary/questions là khung backend chừa sẵn cho module khác đổ
- * dữ liệu vào sau. Hiện backend luôn trả null/[]. Để kiểu `unknown` thay vì một
- * shape đoán trước: `unknown` buộc phải narrow nên không ai vô tình đọc
- * detail.score.overallScore trên dữ liệu đang là null, và khi backend đổ dữ liệu
- * thật thì chỉ thay kiểu ở đây, shape của response không đổi.
+ * score và summary là khung backend chừa sẵn cho module khác đổ dữ liệu vào
+ * sau; hiện luôn trả null. Để kiểu `unknown` thay vì một shape đoán trước:
+ * `unknown` buộc phải narrow nên không ai vô tình đọc
+ * detail.score.overallScore trên dữ liệu đang là null, và khi backend đổ dữ
+ * liệu thật thì chỉ thay kiểu ở đây, shape của response không đổi.
  */
 export interface InterviewHistoryDetail {
   id: string

@@ -10,9 +10,10 @@ const NO_RESULT_STATUSES = [400, 403, 404]
 /**
  * Điểm và nhận xét của một buổi phỏng vấn, tải riêng khỏi chi tiết lịch sử.
  *
- * API lịch sử đã chừa sẵn field score và summary nhưng hiện luôn trả null; trong
- * lúc Scoring module chưa đổ dữ liệu vào đó, trang chi tiết lấy trực tiếp từ
- * endpoint của Scoring. Khi detail.score có dữ liệu thật thì bỏ hook này.
+ * API lịch sử cũng trả score và summary, nhưng chỉ là mấy con số điểm cùng phần
+ * nhận xét; endpoint của Scoring còn có biểu đồ cảm xúc theo từng câu, tên model
+ * và phiên bản prompt. Trang chi tiết vì vậy luôn đọc từ đây, và `detail.score`
+ * chỉ còn là dữ liệu dự phòng chưa ai dùng.
  *
  * enabled là false thì không gọi gì: chỉ buổi đã hoàn thành mới có kết quả, gọi
  * cho buổi đang dở chỉ nhận về 400.
