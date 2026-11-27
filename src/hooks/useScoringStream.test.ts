@@ -40,6 +40,7 @@ test('filters events by sessionId, invokes callbacks, and does not reopen when c
   const onScored = vi.fn()
   const onFailed = vi.fn()
   const onConnected = vi.fn()
+  const onReconnected = vi.fn()
 
   const { result, rerender } = renderHook(
     ({ scoredCb }) =>
@@ -49,6 +50,7 @@ test('filters events by sessionId, invokes callbacks, and does not reopen when c
         onScored: scoredCb,
         onFailed,
         onConnected,
+        onReconnected,
       }),
     { initialProps: { scoredCb: onScored } },
   )
@@ -58,10 +60,17 @@ test('filters events by sessionId, invokes callbacks, and does not reopen when c
 
   act(() => {
     capturedOptions?.onStateChange?.('open')
-    capturedOptions?.onOpen?.()
+    capturedOptions?.onOpen?.(false)
   })
   expect(result.current.connectionState).toBe('open')
   expect(onConnected).toHaveBeenCalledTimes(1)
+  expect(onReconnected).not.toHaveBeenCalled()
+
+  act(() => {
+    capturedOptions?.onOpen?.(true)
+  })
+  expect(onConnected).toHaveBeenCalledTimes(2)
+  expect(onReconnected).toHaveBeenCalledTimes(1)
 
   const otherSessionEvent: ScoringJobEvent = {
     userId: 'user-1',

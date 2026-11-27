@@ -30,7 +30,7 @@ export function HistoryDetailPage() {
   const { connectionState } = useScoringStream({
     enabled: detail?.status === 'SUBMITTED' || detail?.status === 'SCORING',
     sessionId: detail?.id ?? null,
-    onConnected: reload,
+    onReconnected: reload,
     onScored: () => {
       toast.success('Đã có kết quả chấm điểm', 'Bảng điểm và nhận xét đã sẵn sàng.')
       reload()

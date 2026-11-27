@@ -58,7 +58,7 @@ export const EMOTION_ORDER: readonly EmotionLabel[] = [
 export const EMOTION_META: Record<EmotionLabel, EmotionMeta> = {
   positive: { label: 'Tích cực', barClass: 'bg-success-600' },
   neutral: { label: 'Bình thản', barClass: 'bg-border-strong' },
-  happy: { label: 'Vui vẻ', barClass: 'bg-success-600' },
+  happy: { label: 'Vui vẻ', barClass: 'bg-success-700' },
   surprised: { label: 'Ngạc nhiên', barClass: 'bg-info-600' },
   sad: { label: 'Buồn', barClass: 'bg-brand-300' },
   fearful: { label: 'Lo lắng', barClass: 'bg-warning-600' },
