@@ -272,6 +272,53 @@ test('nhận sự kiện SSE answer-scored thì bắn toast và tải kết qu�
   expect(await screen.findByText('7,4')).toBeInTheDocument()
 })
 
+test('nhận sự kiện SSE answer-failed thì bắn toast lỗi và tải lại chi tiết buổi', async () => {
+  let currentStatus: InterviewHistoryDetail['status'] = 'SCORING'
+  setup(sessionId, {
+    detail: () => ({ ...detail, status: currentStatus }),
+  })
+
+  expect(await screen.findByText('Hệ thống đang chấm bài')).toBeInTheDocument()
+
+  currentStatus = 'FAILED'
+  act(() => {
+    capturedStreamOptions?.onEvent({
+      userId: 'user-1',
+      jobId: 'job-1',
+      type: 'answer-failed',
+      payload: { sessionId, error: 'AI service is temporarily busy.' },
+    })
+  })
+
+  expect(await screen.findByText('AI service is temporarily busy.')).toBeInTheDocument()
+  expect(
+    await screen.findByText('Câu trả lời của bạn vẫn được lưu. Hãy thử kiểm tra lại sau.'),
+  ).toBeInTheDocument()
+})
+
+test('chỉ reload chi tiết buổi khi SSE reconnect, không gọi trùng lúc mới mở lần đầu', async () => {
+  const urls = setup(sessionId, {
+    detail: () => ({ ...detail, status: 'SCORING' }),
+  })
+  // Đếm riêng request chi tiết: buổi này không có câu hỏi nhúng nên trang còn
+  // gọi thêm bộ câu hỏi của phiên, so sánh cả mảng url sẽ gãy vì chuyện đó.
+  const detailCalls = () => urls.filter((url) => url === `/interviews/${sessionId}`).length
+
+  expect(await screen.findByText('Hệ thống đang chấm bài')).toBeInTheDocument()
+  expect(detailCalls()).toBe(1)
+
+  // Lần mở kết nối đầu tiên không phải reconnect: tải lại là gọi trùng.
+  act(() => {
+    capturedStreamOptions?.onOpen?.(false)
+  })
+  expect(detailCalls()).toBe(1)
+
+  act(() => {
+    capturedStreamOptions?.onOpen?.(true)
+  })
+  await waitFor(() => expect(detailCalls()).toBe(2))
+})
+
 /**
  * API lịch sử chừa sẵn `questions` và đó là nguồn duy nhất có kèm video và
  * transcript, nên khi nó có dữ liệu thì trang không gọi thêm request nào nữa.
