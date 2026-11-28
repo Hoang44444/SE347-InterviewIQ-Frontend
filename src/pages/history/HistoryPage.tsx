@@ -6,9 +6,7 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useInterviewHistory } from '@/hooks/useInterviewHistory'
 import { ROUTES } from '@/routes/paths'
 import { hasActiveFilter } from '@/services/interviewHistoryService'
-import { isRangeReversed } from '@/utils/dateRange'
-
-const RANGE_ERROR = '"Từ ngày" phải trước hoặc bằng "Đến ngày"'
+import { RANGE_REVERSED_MESSAGE, isRangeReversed } from '@/utils/dateRange'
 
 export function HistoryPage() {
   useDocumentTitle('Lịch sử phỏng vấn')
@@ -16,7 +14,7 @@ export function HistoryPage() {
   const history = useInterviewHistory()
   const { page, filter, items, isLoading, loadError } = history
 
-  const rangeError = isRangeReversed(filter.fromDate, filter.toDate) ? RANGE_ERROR : ''
+  const rangeError = isRangeReversed(filter.fromDate, filter.toDate) ? RANGE_REVERSED_MESSAGE : ''
   const isFiltering = hasActiveFilter(filter)
   /** Tài khoản chưa có buổi nào, khác với "trang này rỗng" hay "lọc không ra gì". */
   const isEmptyAccount = !isFiltering && items.length === 0 && !page?.hasNext && !page?.hasPrevious

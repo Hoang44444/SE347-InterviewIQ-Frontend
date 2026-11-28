@@ -8,7 +8,12 @@ import type {
   InterviewHistoryItem,
   InterviewHistoryQuery,
 } from '@/types/history'
-import { endOfLocalDayIso, isRangeReversed, startOfLocalDayIso } from '@/utils/dateRange'
+import {
+  RANGE_REVERSED_MESSAGE,
+  endOfLocalDayIso,
+  isRangeReversed,
+  startOfLocalDayIso,
+} from '@/utils/dateRange'
 
 /** Bộ lọc rỗng: dùng làm giá trị khởi tạo và làm mốc để biết đang có lọc hay không. */
 export const EMPTY_HISTORY_FILTER: InterviewHistoryFilter = {
@@ -63,7 +68,7 @@ export const interviewHistoryService = {
     // Chặn ở đây để người dùng thấy lỗi ngay cạnh ô ngày, thay vì đợi backend
     // trả 400 rồi hiện một thông báo chung chung ở đầu trang.
     if (isRangeReversed(filter.fromDate, filter.toDate)) {
-      throw clientError('"Từ ngày" phải trước hoặc bằng "Đến ngày"')
+      throw clientError(RANGE_REVERSED_MESSAGE)
     }
 
     const { data } = await apiClient.get<ApiSuccessResponse<PageResult<InterviewHistoryItem>>>(

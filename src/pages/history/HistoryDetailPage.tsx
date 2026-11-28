@@ -1,10 +1,16 @@
 import { Link, useParams } from 'react-router-dom'
 
-import { CheatLogPanel, HistoryResultPanel, HistoryTimeline } from '@/components/history'
+import {
+  CheatLogPanel,
+  HistoryQuestionPanel,
+  HistoryResultPanel,
+  HistoryTimeline,
+} from '@/components/history'
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner, Stack } from '@/components/ui'
 import { SESSION_STATUS_LABEL, SESSION_STATUS_TONE } from '@/constants/interview'
 import { SCORING_STREAM_STATUS_LABEL } from '@/constants/scoring'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { useHistoryQuestions } from '@/hooks/useHistoryQuestions'
 import { useInterviewHistoryDetail } from '@/hooks/useInterviewHistoryDetail'
 import { useScoringStream } from '@/hooks/useScoringStream'
 import { useSessionResult } from '@/hooks/useSessionResult'
@@ -39,10 +45,17 @@ export function HistoryDetailPage() {
 
   /**
    * Chỉ buổi đã hoàn thành mới có kết quả chấm; gọi cho trạng thái khác chỉ nhận
-   * về 400. Endpoint /scoring/sessions/:id/result trả đủ bảng điểm, metadata mô hình
-   * và emotionTimeline mà API lịch sử không mang theo.
+   * về 400.
+   *
+   * Không tắt hook khi `detail.score` đã có dữ liệu, dù nghe thì đó là một
+   * request tiết kiệm được: endpoint của Scoring trả nhiều hơn hẳn — biểu đồ
+   * cảm xúc theo từng câu, tên model và phiên bản prompt — còn API lịch sử chỉ
+   * có mấy con số điểm. Tắt theo `detail.score` từng làm buổi đã chấm xong hiện
+   * ra "Chưa lấy được điểm", vì không nhánh nào đọc `detail.score` cả.
    */
   const sessionResult = useSessionResult(detail?.id ?? null, detail?.status === 'COMPLETED')
+
+  const questionList = useHistoryQuestions(detail)
 
   /**
    * Buổi đã hoàn thành thì "kiểm tra lại" là tải lại kết quả chấm. Các trạng
@@ -164,6 +177,15 @@ export function HistoryDetailPage() {
           )}
         </Stack>
       </div>
+
+      <HistoryQuestionPanel
+        status={detail.status}
+        questions={questionList.questions}
+        isLoading={questionList.isLoading}
+        loadError={questionList.loadError}
+        isAnswerless={questionList.isAnswerless}
+        onRetry={questionList.reload}
+      />
     </Stack>
   )
 }

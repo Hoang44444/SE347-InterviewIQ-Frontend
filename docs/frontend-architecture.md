@@ -169,6 +169,33 @@ request.
 
 The detail response includes `score`, `summary`, and `questions` for completed sessions, while omitting `emotionTimeline`, `scoringModel`, and `promptVersion`. For any `COMPLETED` session, the detail page reads `GET /api/scoring/sessions/:id/result` through `useSessionResult` so `ScoringResultView` has the full breakdown, model metadata, and emotion timeline. That endpoint answers 400/403/404 when there is simply no result yet, so those statuses produce a status-specific notice rather than an error banner. For a session that is not yet completed, the retry control reloads the detail instead: what the viewer is waiting for is the status changing, not a result that cannot exist.
 
+`HistoryQuestionPanel` renders the question list below the score card: one native
+`<details>` per question (the first one open) with its domain/difficulty badges,
+the verified answer duration, the saved video and the transcript. Native
+`<details>` keeps keyboard access, screen readers and browser find-in-page working
+without any accordion state of its own.
+
+`useHistoryQuestions` resolves that list from two sources. `detail.questions` wins
+because it is the only one that carries answers — the backend returns
+`{id, orderIndex, content, domain, difficulty, answer: {videoUrl, durationSeconds,
+transcript}}` per question. `InterviewHistoryQuestion` is only a paper contract,
+so `parseHistoryQuestions` (`src/utils/historyQuestions.ts`) re-checks that shape
+at runtime and is the single adapter for it, which makes a change in the backend
+shape a change in one file. It reads a nested `answer`, the first element of `answers`, or answer
+fields placed directly on the question, accepts both camelCase and snake_case
+names, drops entries with no question content, falls back to array position when
+`publicId`/`orderIndex` are missing, sorts by `orderIndex`, and degrades every
+missing field to `null` instead of throwing. An empty transcript is a real
+transcript, because the answer PUT allows one; a missing video keeps the transcript
+visible rather than hiding the whole answer.
+
+Should `detail.questions` ever come back empty, the hook falls back to
+`GET /interview-session/:id/questions`, which has question content but no answers.
+The panel then shows the questions and says the recordings could not be read,
+instead of claiming the viewer left them blank. As with the result endpoint,
+400/403/404 mean "no question set to show" and produce a short line rather than an
+error banner with a retry button.
+
 ## Interview Question Generation
 
 A session in the `CREATED` status shows `CreatedSessionContent` in `InterviewSessionRoom`: three summary tiles, the job description saved at creation (read-only; it is sent only by `POST /interview-session` and never to the generate endpoint), the question panel and **Bắt đầu**. Other statuses keep the previous summary.
