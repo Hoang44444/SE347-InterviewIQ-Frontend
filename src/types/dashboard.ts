@@ -75,3 +75,18 @@ export interface HistoryInsightState {
   /** null cho tới lần tạo đầu tiên. */
   insight: HistoryInsight | null
 }
+
+/** Khoảng ngày của bộ lọc dashboard, dạng "yyyy-MM-dd" như <input type="date"> trả về. */
+export interface DashboardDateRange {
+  fromDate: string
+  toDate: string
+}
+
+/** Query của GET /interviews/stats. Hai mốc ngày là ISO 8601, không phải "yyyy-MM-dd". */
+export interface InterviewStatsQuery {
+  limit: number
+  /** Chỉ tính buổi có createdAt >= fromDate. */
+  fromDate?: string
+  /** Chỉ tính buổi có createdAt <= toDate. */
+  toDate?: string
+}

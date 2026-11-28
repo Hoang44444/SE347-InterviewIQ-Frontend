@@ -59,3 +59,9 @@ export function endOfLocalDayIso(value: string): string | null {
 export function isRangeReversed(fromDate: string, toDate: string): boolean {
   return fromDate !== '' && toDate !== '' && fromDate > toDate
 }
+
+/**
+ * Thông báo cho khoảng ngày đảo chiều. Để ở đây cùng với luật kiểm tra, để cùng
+ * một lỗi không hiện ra hai cách nói khác nhau ở hai màn hình.
+ */
+export const RANGE_REVERSED_MESSAGE = '"Từ ngày" phải trước hoặc bằng "Đến ngày"'

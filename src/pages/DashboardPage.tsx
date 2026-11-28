@@ -1,4 +1,9 @@
-import { InsightCard, ScoreComparisonCard, ScoreTrendChart } from '@/components/dashboard'
+import {
+  DashboardFilters,
+  InsightCard,
+  ScoreComparisonCard,
+  ScoreTrendChart,
+} from '@/components/dashboard'
 import {
   Button,
   Card,
@@ -13,6 +18,7 @@ import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useHistoryInsight } from '@/hooks/useHistoryInsight'
 import { ROUTES } from '@/routes/paths'
+import { hasActiveDateRange } from '@/services/dashboardService'
 import type { InterviewStats } from '@/types/dashboard'
 import { formatScore } from '@/utils/format'
 
@@ -36,9 +42,11 @@ function statTiles(stats: InterviewStats | null) {
 export function DashboardPage() {
   useDocumentTitle('Tổng quan')
   const { user } = useAuth()
-  const { stats, isLoading, loadError, reload } = useDashboardStats()
+  const { stats, range, rangeError, isLoading, loadError, applyRange, clearRange, reload } =
+    useDashboardStats()
   const insight = useHistoryInsight()
 
+  const isFiltered = hasActiveDateRange(range)
   const hasScores = stats !== null && stats.completedSessions > 0
 
   return (
@@ -46,6 +54,14 @@ export function DashboardPage() {
       <PageHeader
         title={`Xin chào, ${user?.fullName ?? 'bạn'}`}
         description="Đây là tổng quan quá trình luyện tập của bạn."
+      />
+
+      <DashboardFilters
+        range={range}
+        onChange={applyRange}
+        onClear={clearRange}
+        rangeError={rangeError}
+        isFiltered={isFiltered}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -62,7 +78,8 @@ export function DashboardPage() {
         ))}
       </div>
 
-      {loadError && (
+      {/* Khoảng ngày đảo chiều đã hiện ngay dưới ô nhập, không nhắc lại ở đây. */}
+      {loadError && !rangeError && (
         <Card className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-danger-700">{loadError}</p>
           <Button variant="secondary" size="sm" onClick={reload}>
@@ -77,20 +94,32 @@ export function DashboardPage() {
         </div>
       )}
 
-      {stats && !hasScores && (
-        <EmptyState
-          title="Chưa có buổi nào được chấm điểm"
-          description="Hoàn thành một buổi phỏng vấn thử để xem điểm, xu hướng và so sánh theo từng tiêu chí ở đây."
-          action={
-            <TransitionLink
-              to={ROUTES.interviews}
-              className="text-sm font-medium text-brand-600 hover:underline"
-            >
-              Bắt đầu luyện tập
-            </TransitionLink>
-          }
-        />
-      )}
+      {stats &&
+        !hasScores &&
+        (isFiltered ? (
+          <EmptyState
+            title="Không có buổi nào trong khoảng ngày này"
+            description="Thử nới khoảng thời gian, hoặc xoá lọc để xem lại toàn bộ quá trình luyện tập."
+            action={
+              <Button variant="secondary" onClick={clearRange}>
+                Xoá lọc
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            title="Chưa có buổi nào được chấm điểm"
+            description="Hoàn thành một buổi phỏng vấn thử để xem điểm, xu hướng và so sánh theo từng tiêu chí ở đây."
+            action={
+              <TransitionLink
+                to={ROUTES.interviews}
+                className="text-sm font-medium text-brand-600 hover:underline"
+              >
+                Bắt đầu luyện tập
+              </TransitionLink>
+            }
+          />
+        ))}
 
       {stats && hasScores && (
         // items-start: card so sánh cao hơn, không để nó kéo card xu hướng cao theo
@@ -99,8 +128,8 @@ export function DashboardPage() {
             <div>
               <h2 className="font-semibold text-content">Xu hướng điểm</h2>
               <p className="text-sm text-content-muted">
-                {stats.trend.length} buổi gần nhất, cũ nhất bên trái. Trung bình tính trên cả{' '}
-                {stats.completedSessions} buổi.
+                {stats.trend.length} buổi gần nhất{isFiltered ? ' trong khoảng đã chọn' : ''}, cũ
+                nhất bên trái. Trung bình tính trên cả {stats.completedSessions} buổi.
               </p>
             </div>
             <ScoreTrendChart points={stats.trend} maxScore={stats.maxScore} />

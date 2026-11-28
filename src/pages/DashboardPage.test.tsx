@@ -7,6 +7,7 @@ import { DashboardPage } from './DashboardPage'
 
 import { STORAGE_KEYS } from '@/constants'
 import { apiClient } from '@/services/apiClient'
+import { DASHBOARD_TREND_LIMIT } from '@/services/dashboardService'
 import type { HistoryInsightState, InterviewStats, InterviewStatsSession } from '@/types/dashboard'
 import { storage } from '@/utils/storage'
 
@@ -74,9 +75,23 @@ function insightState(overrides: Partial<HistoryInsightState> = {}): HistoryInsi
 type Reply = { status: number; data: unknown }
 
 const originalAdapter = apiClient.defaults.adapter
+
+/** Request của test đang chạy, để soi params mà bộ lọc gửi lên. */
+let requests: InternalAxiosRequestConfig[] = []
+
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
+  requests = []
 })
+
+function statsRequests(): InternalAxiosRequestConfig[] {
+  return requests.filter((request) => request.url === '/interviews/stats')
+}
+
+/** Params của lần gọi /interviews/stats gần nhất. */
+function lastStatsParams(): Record<string, string | number> {
+  return (statsRequests().at(-1)?.params ?? {}) as Record<string, string | number>
+}
 
 /** Backend giả trả lời theo method + url; trả về danh sách request đã gửi. */
 function setup(routes: Record<string, () => Reply>) {
@@ -86,6 +101,7 @@ function setup(routes: Record<string, () => Reply>) {
   apiClient.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
     const key = `${config.method?.toUpperCase()} ${config.url}`
     calls.push(key)
+    requests.push(config)
     const reply = routes[key]?.() ?? { status: 404, data: { message: 'Not found' } }
     if (reply.status >= 400) {
       return Promise.reject(
@@ -215,4 +231,74 @@ test('tải thống kê lỗi thì có nút thử lại', async () => {
   await waitFor(() =>
     expect(calls.filter((call) => call === 'GET /interviews/stats')).toHaveLength(2),
   )
+})
+
+/**
+ * Bộ lọc chỉ đổi số liệu và hai biểu đồ. Nhận xét AI không nhận khoảng ngày nên
+ * trang phải nói rõ, không thì số buổi ở hai chỗ đá nhau mà không ai hiểu vì sao.
+ */
+test('lọc khoảng ngày: gửi mốc ISO địa phương và nói rõ phạm vi của bộ lọc', async () => {
+  setup({
+    'GET /interviews/stats': ok(scoredStats),
+    'GET /interviews/insight': ok(insightState()),
+  })
+  await screen.findByRole('img', { name: /Xu hướng điểm/ })
+
+  fireEvent.change(screen.getByLabelText('Từ ngày'), { target: { value: '2026-10-01' } })
+  fireEvent.change(screen.getByLabelText('Đến ngày'), { target: { value: '2026-10-20' } })
+
+  await waitFor(() => expect(lastStatsParams().toDate).toBeDefined())
+  const params = lastStatsParams()
+  expect(params.limit).toBe(DASHBOARD_TREND_LIMIT)
+
+  const from = new Date(params.fromDate as string)
+  expect([from.getMonth(), from.getDate(), from.getHours()]).toEqual([9, 1, 0])
+  const to = new Date(params.toDate as string)
+  expect([to.getDate(), to.getHours(), to.getSeconds()]).toEqual([20, 23, 59])
+
+  expect(screen.getByText(/buổi gần nhất trong khoảng đã chọn/)).toBeInTheDocument()
+  expect(screen.getByText(/Nhận xét của AI luôn dựa trên toàn bộ lịch sử/)).toBeInTheDocument()
+})
+
+test('khoảng ngày đảo chiều: lỗi cạnh ô nhập, giữ số liệu cũ, không gọi thêm request', async () => {
+  setup({
+    'GET /interviews/stats': ok(scoredStats),
+    'GET /interviews/insight': ok(insightState()),
+  })
+  await screen.findByRole('img', { name: /Xu hướng điểm/ })
+
+  fireEvent.change(screen.getByLabelText('Từ ngày'), { target: { value: '2026-10-31' } })
+  await waitFor(() => expect(statsRequests()).toHaveLength(2))
+
+  fireEvent.change(screen.getByLabelText('Đến ngày'), { target: { value: '2026-10-01' } })
+
+  expect(await screen.findByText('"Từ ngày" phải trước hoặc bằng "Đến ngày"')).toBeInTheDocument()
+  expect(screen.queryByText(/Chưa tải được thống kê điểm/)).not.toBeInTheDocument()
+  // Số liệu của lần lọc trước còn đó để người dùng sửa lại mốc ngày.
+  expect(screen.getByText('6,4')).toBeInTheDocument()
+  expect(statsRequests()).toHaveLength(2)
+})
+
+test('khoảng ngày không có buổi nào: nói rõ do lọc, xoá lọc thì xem lại toàn bộ', async () => {
+  let payload: InterviewStats = scoredStats
+  setup({
+    'GET /interviews/stats': () => ({ status: 200, data: payload }),
+    'GET /interviews/insight': ok(insightState()),
+  })
+  await screen.findByRole('img', { name: /Xu hướng điểm/ })
+
+  payload = emptyStats
+  fireEvent.change(screen.getByLabelText('Từ ngày'), { target: { value: '2026-11-01' } })
+
+  expect(await screen.findByText('Không có buổi nào trong khoảng ngày này')).toBeInTheDocument()
+  expect(screen.queryByText('Chưa có buổi nào được chấm điểm')).not.toBeInTheDocument()
+
+  // Hai nút cùng tên: một ở thanh lọc, một trong ô trống. Bấm nút của ô trống.
+  payload = scoredStats
+  const clearButtons = screen.getAllByRole('button', { name: 'Xoá lọc' })
+  expect(clearButtons).toHaveLength(2)
+  fireEvent.click(clearButtons[1])
+
+  expect(await screen.findByRole('img', { name: /Xu hướng điểm/ })).toBeInTheDocument()
+  expect(screen.getByLabelText('Từ ngày')).toHaveValue('')
 })
